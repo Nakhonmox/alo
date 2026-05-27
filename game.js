@@ -13,10 +13,11 @@ let mouseY = 0;
 const gravity = 0.6;
 const floorY = canvas.height - 60;
 
-// Sistema de Estados del Juego
-let gameState = "menu"; // "menu", "playing"
+// ==========================================
+// SISTEMA DE ESTADOS DEL JUEGO
+// ==========================================
+let gameState = "menu"; // Estados posibles: "menu", "playing"
 
-// Coordenadas y tamaño del botón Play
 const playButton = {
     x: canvas.width / 2 - 100,
     y: canvas.height / 2,
@@ -33,40 +34,24 @@ let dragonSpawned = false;
 let dragonWarning = false;
 
 // ==========================================
-// CONFIGURACIÓN DEL SISTEMA DE RONDAS
+// NUEVO: SISTEMA DE RONDAS
 // ==========================================
-const roundSystem = {
-    currentRound: 1,
-    enemiesTotal: 20,       // Ronda 1 empieza con 20
-    enemiesSpawned: 0,      // Cuántos han salido ya a la pantalla
-    enemiesRemaining: 20,   // Cuántos faltan por morir para pasar de ronda
-    isIntermission: false,  // ¿Estamos en los 10 segundos de espera?
-    intermissionTime: 10,   // Cuenta regresiva del descanso
-    intermissionInterval: null
-};
+let currentRound = 1;
+let enemiesLeftInRound = 20; // Ronda 1 empieza con 20
+let enemiesSpawnedInRound = 0;
+let isRoundBreak = false;
+let roundBreakTimer = 0; // Segundos restantes para la siguiente ronda
 
-// Modificación para calcular dinámicamente los enemigos por ronda
-function startRound(roundNumber) {
-    roundSystem.currentRound = roundNumber;
-    roundSystem.enemiesTotal = 20 + (roundNumber - 1) * 50; // Ronda 1=20, Ronda 2=70, Ronda 3=120...
-    roundSystem.enemiesSpawned = 0;
-    roundSystem.enemiesRemaining = roundSystem.enemiesTotal;
-    roundSystem.isIntermission = false;
+function getTotalEnemiesForRound(round) {
+    if (round === 1) return 20;
+    return 20 + (round - 1) * 50; // Cada ronda suma 50 enemigos más
 }
 
-function startIntermission() {
-    roundSystem.isIntermission = true;
-    roundSystem.intermissionTime = 10;
-    
-    roundSystem.intermissionInterval = setInterval(() => {
-        if (gameState !== "playing" || isPaused || player.lives <= 0) return;
-        
-        roundSystem.intermissionTime--;
-        if (roundSystem.intermissionTime <= 0) {
-            clearInterval(roundSystem.intermissionInterval);
-            startRound(roundSystem.currentRound + 1); // Iniciar siguiente ronda
-        }
-    }, 1000);
+function startNextRound() {
+    currentRound++;
+    enemiesSpawnedInRound = 0;
+    enemiesLeftInRound = getTotalEnemiesForRound(currentRound);
+    isRoundBreak = false;
 }
 // ==========================================
 
@@ -148,7 +133,6 @@ window.addEventListener("click", e => {
             mouseY <= playButton.y + playButton.height
         ) {
             gameState = "playing";
-            startRound(1); // Inicializa la ronda 1 al dar Play
         }
     }
 });
@@ -230,9 +214,19 @@ function startReload() {
     else player.reloadTimer = 80;
 }
 
-// Reloj interno del juego 
+// Reloj interno del juego (Maneja timers de 1 segundo)
 setInterval(() => {
-    if (gameState !== "playing" || isPaused || player.lives <= 0 || roundSystem.isIntermission) return; 
+    if (gameState !== "playing" || isPaused || player.lives <= 0) return; 
+    
+    // Manejo de la cuenta regresiva entre rondas
+    if (isRoundBreak) {
+        roundBreakTimer--;
+        if (roundBreakTimer <= 0) {
+            startNextRound();
+        }
+        return; // Detiene el reloj del dragón mientras se descansa
+    }
+
     gameTimer++;
 
     if (gameTimer % 180 === 175) {
@@ -253,23 +247,17 @@ setInterval(() => {
     }
 }, 1000);
 
-// Helper para controlar el spawn de enemigos respetando el límite por ronda
-function canSpawnEnemy() {
-    return (
-        gameState === "playing" &&
-        player.lives > 0 &&
-        !isPaused &&
-        !dragonSpawned &&
-        !dragonWarning &&
-        !roundSystem.isIntermission &&
-        roundSystem.enemiesSpawned < roundSystem.enemiesTotal
-    );
+// Generador de Enemigos Normales
+function sampleEnemySpawn() {
+    let maxForThisRound = getTotalEnemiesForRound(currentRound);
+    return (enemiesSpawnedInRound < maxForThisRound && !isRoundBreak);
 }
 
-// Generador de Enemigos Normales (Cada 2 segundos para dar dinamismo a las oleadas grandes)
 function spawnEnemy() {
-    if (!canSpawnEnemy()) return;
-    roundSystem.enemiesSpawned++;
+    if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning) return; 
+    if (!sampleEnemySpawn()) return;
+
+    enemiesSpawnedInRound++;
     enemies.push({
         x: Math.random() > 0.5 ? canvas.width + 20 : -50,
         y: floorY - 80,
@@ -283,12 +271,20 @@ function spawnEnemy() {
         lastGrenade: Date.now() + Math.random() * 2000
     });
 }
-setInterval(spawnEnemy, 2000); 
+setInterval(spawnEnemy, 2500); // Se reduce el tiempo de spawn para soportar más enemigos por ronda
 
 // Generador de Enemigos Voladores
+function sampleFlyingSpawn() {
+    // Solo permitir voladores a partir de la ronda 2
+    let maxForThisRound = getTotalEnemiesForRound(currentRound);
+    return (currentRound >= 2 && enemiesSpawnedInRound < maxForThisRound && !isRoundBreak);
+}
+
 function spawnFlyingEnemy() {
-    if (!canSpawnEnemy()) return;
-    roundSystem.enemiesSpawned++;
+    if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning) return; 
+    if (!sampleFlyingSpawn()) return;
+
+    enemiesSpawnedInRound++;
     enemies.push({
         x: Math.random() > 0.5 ? canvas.width + 20 : -50,
         y: Math.random() * (floorY - 250) + 50, 
@@ -300,12 +296,11 @@ function spawnFlyingEnemy() {
         lives: 1 
     });
 }
-setInterval(spawnFlyingEnemy, 3500);
+setInterval(spawnFlyingEnemy, 4000);
 
 // Generador de Jefes Tanque
 function spawnBoss() {
-    if (!canSpawnEnemy()) return;
-    roundSystem.enemiesSpawned++;
+    if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return; 
     enemies.push({
         x: canvas.width + 100,
         y: floorY - 160,
@@ -319,7 +314,7 @@ function spawnBoss() {
         lastShot: Date.now()
     });
 }
-setInterval(spawnBoss, 15000);
+setInterval(spawnBoss, 30000);
 
 setInterval(() => { 
     if (gameState === "playing" && player.lives > 0 && !isPaused) medkits.push({ x: Math.random() * (canvas.width - 100) + 50, y: floorY - 25, width: 25, height: 25 }); 
@@ -344,14 +339,19 @@ function damagePlayer(amount) {
     player.isInvulnerable = true;
     player.invulnerableTimer = 90; 
     if (player.lives <= 0) {
-        if(roundSystem.intermissionInterval) clearInterval(roundSystem.intermissionInterval);
-        alert(`¡Game Over! Llegaste a la Ronda ${roundSystem.currentRound}. Puntuación: ${score}`);
+        alert(`¡Game Over! Puntuación: ${score} | Llegaste a la Ronda: ${currentRound}`);
         document.location.reload();
     }
 }
 
 function update() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused) return; 
+
+    // Verificación de fin de ronda
+    if (enemiesLeftInRound <= 0 && !isRoundBreak) {
+        isRoundBreak = true;
+        roundBreakTimer = 10; // 10 segundos de espera
+    }
 
     if (keys["o"] && !player.isInvulnerable && shieldSystem.current < shieldSystem.max) {
         shieldSystem.isCharging = true;
@@ -481,16 +481,9 @@ function update() {
                 bullets.splice(bIndex, 1);
                 if (enemy.lives <= 0) {
                     enemies.splice(eIndex, 1);
+                    enemiesLeftInRound--; // Reducir los enemigos restantes de la ronda
                     score += enemy.isBoss ? 150 : 50; 
                     scoreEl.innerText = score;
-                    
-                    // Restar enemigo de la ronda actual
-                    roundSystem.enemiesRemaining--;
-                    
-                    // Si se limpian todos, empieza el descanso de 10s
-                    if (roundSystem.enemiesRemaining <= 0 && !roundSystem.isIntermission) {
-                        startIntermission();
-                    }
                 }
             }
         });
@@ -566,7 +559,6 @@ function draw() {
 
     // RENDERIZAR MENÚ DE INICIO
     if (gameState === "menu") {
-        ctx.save();
         ctx.fillStyle = "rgba(10, 10, 20, 0.8)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -592,7 +584,8 @@ function draw() {
         ctx.fillStyle = "#888888";
         ctx.font = "16px Arial";
         ctx.fillText("Controles: A/D (Moverse) - W (Saltar) - Espacio (Disparar) - T (Tienda) - O (Escudo)", canvas.width / 2, canvas.height * 0.75);
-        ctx.restore();
+
+        ctx.textAlign = "left"; 
         return; 
     }
 
@@ -635,7 +628,6 @@ function draw() {
     if (dragonSpawned && dragon) {
         ctx.save();
         let firePulse = Math.sin(Date.now() / 150) * 20;
-
         ctx.fillStyle = "#4a0072"; 
         ctx.beginPath(); ctx.moveTo(canvas.width, dragon.y + 150); ctx.lineTo(dragon.x + 180, dragon.y + 20); ctx.lineTo(dragon.x + 220, dragon.y + 180); ctx.closePath(); ctx.fill();
 
@@ -649,7 +641,6 @@ function draw() {
         ctx.beginPath(); ctx.moveTo(dragon.x + 140, dragon.y + 230); ctx.quadraticCurveTo(dragon.x + 60, dragon.y + 150, dragon.x + 40, dragon.y + 100); ctx.lineTo(dragon.x - 20, dragon.y + 80); ctx.lineTo(dragon.x + 30, dragon.y + 130); ctx.lineTo(dragon.x + 100, dragon.y + 160); ctx.quadraticCurveTo(dragon.x + 110, dragon.y + 200, dragon.x + 140, dragon.y + 250); ctx.closePath(); ctx.fill();
 
         ctx.fillStyle = "#4a0072"; ctx.beginPath(); ctx.moveTo(dragon.x + 30, dragon.y + 130); ctx.lineTo(dragon.x - 5, dragon.y + 115); ctx.lineTo(dragon.x + 40, dragon.y + 150); ctx.closePath(); ctx.fill();
-
         ctx.fillStyle = "#9900ff"; ctx.beginPath(); ctx.moveTo(dragon.x + 40, dragon.y + 90); ctx.lineTo(dragon.x + 10, dragon.y + 40); ctx.lineTo(dragon.x + 60, dragon.y + 95); ctx.closePath(); ctx.fill();
 
         ctx.fillStyle = "#ffff00"; ctx.shadowColor = "#ffea00"; ctx.shadowBlur = 15;
@@ -680,35 +671,6 @@ function draw() {
         } else { ctx.fillRect(eb.x, eb.y, eb.width, eb.height); }
     });
 
-    // ===================================================
-    // ¡ARREGLADO! INTERFAZ DE RONDA / CONTADOR (Superior Centro)
-    // ===================================================
-    ctx.save(); 
-    ctx.textAlign = "center"; // Forzar alineación al centro dentro del bloque
-    
-    if (roundSystem.isIntermission) {
-        // Texto de Descanso (Llamativo en Amarillo)
-        ctx.fillStyle = "#ffff00";
-        ctx.font = "bold 28px Arial";
-        ctx.fillText(`¡RONDA COMPLETADA!`, canvas.width / 2, 45);
-        
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "18px Arial";
-        ctx.fillText(`Próxima ronda en: ${roundSystem.intermissionTime}s`, canvas.width / 2, 75);
-    } else {
-        // Texto de Ronda Activa (Cyan brillante)
-        ctx.fillStyle = "#00ffcc";
-        ctx.font = "bold 32px Arial";
-        ctx.fillText(`RONDA ${roundSystem.currentRound}`, canvas.width / 2, 45);
-        
-        // Contador de Enemigos Faltantes (Rojo alarma)
-        ctx.fillStyle = "#ff3333";
-        ctx.font = "bold 18px Arial";
-        ctx.fillText(`Enemigos faltantes: ${roundSystem.enemiesRemaining}`, canvas.width / 2, 75);
-    }
-    ctx.restore(); 
-    // ===================================================
-
     // Interfaz Corazones Rojos
     for (let i = 0; i < player.lives; i++) {
         let hx = canvas.width - 150 + (i * 35); let hy = 35;
@@ -720,6 +682,30 @@ function draw() {
         let sx = canvas.width - 150 + (i * 35); let sy = 65; 
         ctx.fillStyle = "#00bfff"; ctx.beginPath(); ctx.arc(sx-7, sy, 7, Math.PI, 0, false); ctx.arc(sx+7, sy, 7, Math.PI, 0, false); ctx.lineTo(sx, sy+12); ctx.closePath(); ctx.fill();
     }
+
+    // ==========================================
+    // NUEVO: RENDERIZAR HUD DE RONDAS
+    // ==========================================
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 24px Arial";
+    ctx.fillText(`RONDA: ${currentRound}`, 25, 45);
+    
+    ctx.font = "18px Arial";
+    ctx.fillStyle = "#ff3333";
+    ctx.fillText(`Enemigos restantes: ${enemiesLeftInRound > 0 ? enemiesLeftInRound : 0}`, 25, 75);
+
+    // Pantalla de Espera entre Rondas
+    if (isRoundBreak) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+        ctx.fillRect(0, canvas.height * 0.4 - 40, canvas.width, 100);
+
+        ctx.fillStyle = "#00ffcc";
+        ctx.font = "bold 32px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(`PREPÁRATE - SIGUIENTE RONDA EN: ${roundBreakTimer}s`, canvas.width / 2, canvas.height * 0.45);
+        ctx.textAlign = "left"; // Restaurar
+    }
+    // ==========================================
 
     // Retículo visual del mouse
     ctx.strokeStyle = "rgba(255, 255, 255, 0.4)"; ctx.lineWidth = 1;
@@ -733,16 +719,14 @@ function draw() {
 
     // Advertencia Dragón
     if (dragonWarning) {
-        ctx.save();
         ctx.fillStyle = "rgba(255, 0, 0, " + (Math.sin(Date.now() / 100) * 0.3 + 0.4) + ")"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#ffffff"; ctx.font = "bold 50px Arial"; ctx.textAlign = "center";
         ctx.fillText("⚠️ ¡EL DRAGÓN SUPREMO DESPIERTA EN 5 SEGUNDOS! ⚠️", canvas.width / 2, canvas.height * 0.4);
-        ctx.restore();
+        ctx.textAlign = "left";
     }
 
     // Tienda
     if (showShop) {
-        ctx.save();
         ctx.fillStyle = "rgba(0, 0, 0, 0.85)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#00ffcc"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
         ctx.fillText("TIENDA DE ARMAS (Juego Pausado)", canvas.width / 2, canvas.height * 0.25);
@@ -755,7 +739,7 @@ function draw() {
         ctx.fillText(player.hasRifle ? "[COMPRADO] 2. Rifle Pesado (2 de Daño)" : "[Presiona 2] Comprar Rifle Pesado - Costo: 3000 pts", canvas.width / 2, canvas.height * 0.6);
         
         ctx.fillStyle = "#aaa"; ctx.font = "18px Arial"; ctx.fillText("Presiona 'T' para volver a la batalla", canvas.width / 2, canvas.height * 0.8);
-        ctx.restore();
+        ctx.textAlign = "left";
     }
 }
 
@@ -764,5 +748,4 @@ function loop() {
     draw(); 
     requestAnimationFrame(loop); 
 }
-loop();
 loop();
