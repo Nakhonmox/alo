@@ -2,26 +2,27 @@ const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 const scoreEl = document.getElementById("score");
 
+// Ajustar canvas al tamaño completo del monitor del usuario
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
 let score = 0;
 let keys = {};
-
-// Configuración del escenario horizontal
 const gravity = 0.6;
-const floorY = canvas.height - 40; // El suelo está a 40px del fondo
+const floorY = canvas.height - 60; // Suelo un poco más grueso para pantallas grandes
 
-// 1. Configuración del Jugador
+// 1. Jugador
 const player = {
-    x: 100,
+    x: 150,
     y: floorY - 80,
     width: 40,
     height: 80,
-    speed: 5,
-    jumpForce: 13,
+    speed: 6,
+    jumpForce: 14,
     velocityY: 0,
     isGrounded: false,
     color: "#00ffcc",
     facing: 1,
-    // NUEVO: Sistema de vidas e invulnerabilidad
     lives: 3,
     maxLives: 3,
     isInvulnerable: false,
@@ -30,316 +31,298 @@ const player = {
 
 let bullets = [];
 let enemies = [];
-let medkits = []; // Lista para almacenar el botiquín
+let medkits = [];
 
-// NUEVO: Definición de las 3 plataformas flotantes (x, y, ancho, alto)
+// Plataformas distribuidas dinámicamente según el ancho del monitor
 const platforms = [
-    { x: 250, y: 320, width: 180, height: 15 },
-    { x: 550, y: 240, width: 200, height: 15 },
-    { x: 150, y: 160, width: 150, height: 15 }
+    { x: canvas.width * 0.2, y: canvas.height * 0.65, width: 250, height: 15 },
+    { x: canvas.width * 0.5, y: canvas.height * 0.5, width: 300, height: 15 },
+    { x: canvas.width * 0.75, y: canvas.height * 0.35, width: 220, height: 15 }
 ];
 
-// Escuchar teclado
-window.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
-window.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+// Fondo con profundidad (Generación de estrellas fijas)
+const stars = [];
+for (let i = 0; i < 60; i++) {
+    stars.push({ x: Math.random() * canvas.width, y: Math.random() * (canvas.height * 0.6), size: Math.random() * 2 });
+}
 
-// Disparar con la tecla X
+// Escuchar teclado
+window.addEventListener("keydown", e => keys[e.key === " " ? "space" : e.key.toLowerCase()] = true);
+window.addEventListener("keyup", e => keys[e.key === " " ? "space" : e.key.toLowerCase()] = false);
+
+// Disparar con ESPACIO
 window.addEventListener("keydown", e => {
-    if (e.key.toLowerCase() === "x" && player.lives > 0) {
+    if (e.key === " " && player.lives > 0) {
         bullets.push({
             x: player.facing === 1 ? player.x + player.width + 5 : player.x - 15,
             y: player.y + 35,
-            width: 12,
+            width: 15, // Balas un poco más grandes
             height: 6,
-            speed: 12 * player.facing,
+            speed: 15 * player.facing,
             color: "#ff0055"
         });
     }
 });
 
-// Generador de enemigos (Stickmen Rojos)
+// Generador de Enemigos Normales (Cada 10 segundos)
 function spawnEnemy() {
     if (player.lives <= 0) return;
     enemies.push({
-        x: canvas.width + 20,
-        y: floorY - 80, 
+        x: Math.random() > 0.5 ? canvas.width + 20 : -50, // Pueden salir de ambos lados
+        y: floorY - 80,
         width: 40,
         height: 80,
         speed: Math.random() * (3 - 1.5) + 1.5,
-        color: "#ff3333"
+        color: "#ff3333",
+        isBoss: false,
+        lives: 1
     });
 }
-setInterval(spawnEnemy, 1800); 
+setInterval(spawnEnemy, 10000); // 10 segundos
 
-// NUEVO: Generador de Botiquines (Aparece uno cada 60 segundos)
-function spawnMedkit() {
+// Generador de Enemigos Gigantes (Cada 30 segundos)
+function spawnBoss() {
     if (player.lives <= 0) return;
-    // Aparece en una posición X aleatoria en el suelo
-    medkits.push({
-        x: Math.random() * (canvas.width - 60) + 30,
-        y: floorY - 25,
-        width: 25,
-        height: 25
+    enemies.push({
+        x: canvas.width + 100, // Aparece siempre como amenaza por la derecha
+        y: floorY - 160,       // Doble de alto
+        width: 80,             // Doble de ancho
+        height: 160,
+        speed: 1.2,            // Un poco más lento pero implacable
+        color: "#990000",      // Rojo oscuro imponente
+        isBoss: true,
+        lives: 10,             // Requiere 10 disparos
+        maxLives: 10
     });
 }
-setInterval(spawnMedkit, 60000); // 60000 milisegundos = 60 segundos
+setInterval(spawnBoss, 30000); // 30 segundos
 
-// Función para dibujar los Stickmen
-function drawStickman(x, y, color, hasGun, facingRight, isInvisibleFlashing) {
-    // Si es invulnerable, hacemos que parpadee (no se dibuja en algunos fotogramas)
-    if (isInvisibleFlashing && Math.floor(Date.now() / 100) % 2 === 0) return;
+setInterval(() => { if (player.lives > 0) medkits.push({ x: Math.random() * (canvas.width - 100) + 50, y: floorY - 25, width: 25, height: 25 }); }, 60000);
+
+// Dibujar Stickman Avanzado (Soporta escala para el Gigante)
+function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 1) {
+    if (isInvulnerable && Math.floor(Date.now() / 100) % 2 === 0) return;
 
     ctx.strokeStyle = color;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3 * scale; // Más grueso si es más grande
     ctx.fillStyle = color;
 
-    const cx = x + 20;
+    const w = 40 * scale;
+    const h = 80 * scale;
+    const cx = x + w / 2;
 
     // Cabeza
     ctx.beginPath();
-    ctx.arc(cx, y + 15, 10, 0, Math.PI * 2);
+    ctx.arc(cx, y + (15 * scale), 10 * scale, 0, Math.PI * 2);
     ctx.stroke();
 
     // Cuerpo
     ctx.beginPath();
-    ctx.moveTo(cx, y + 25);
-    ctx.lineTo(cx, y + 55);
+    ctx.moveTo(cx, y + (25 * scale));
+    ctx.lineTo(cx, y + (55 * scale));
     ctx.stroke();
 
     // Piernas
     ctx.beginPath();
-    ctx.moveTo(cx, y + 55);
-    ctx.lineTo(cx - 10, y + 80);
-    ctx.moveTo(cx, y + 55);
-    ctx.lineTo(cx + 10, y + 80);
+    ctx.moveTo(cx, y + (55 * scale));
+    ctx.lineTo(cx - (10 * scale), y + h);
+    ctx.moveTo(cx, y + (55 * scale));
+    ctx.lineTo(cx + (10 * scale), y + h);
     ctx.stroke();
 
-    // Brazos y Armas
+    // Brazos
     ctx.beginPath();
+    ctx.moveTo(cx, y + (35 * scale));
     if (hasGun) {
-        ctx.moveTo(cx, y + 35);
         if (facingRight) {
-            ctx.lineTo(cx + 18, y + 35);
+            ctx.lineTo(cx + (18 * scale), y + (35 * scale));
             ctx.stroke();
             ctx.strokeStyle = "#ffffff";
-            ctx.lineWidth = 4;
+            ctx.lineWidth = 4 * scale;
             ctx.beginPath();
-            ctx.moveTo(cx + 18, y + 35);
-            ctx.lineTo(cx + 26, y + 35);
-            ctx.moveTo(cx + 20, y + 35);
-            ctx.lineTo(cx + 20, y + 41);
+            ctx.moveTo(cx + (18 * scale), y + (35 * scale));
+            ctx.lineTo(cx + (26 * scale), y + (35 * scale));
+            ctx.moveTo(cx + (20 * scale), y + (35 * scale));
+            ctx.lineTo(cx + (20 * scale), y + (41 * scale));
             ctx.stroke();
         } else {
-            ctx.lineTo(cx - 18, y + 35);
+            ctx.lineTo(cx - (18 * scale), y + (35 * scale));
             ctx.stroke();
             ctx.strokeStyle = "#ffffff";
-            ctx.lineWidth = 4;
+            ctx.lineWidth = 4 * scale;
             ctx.beginPath();
-            ctx.moveTo(cx - 18, y + 35);
-            ctx.lineTo(cx - 26, y + 35);
-            ctx.moveTo(cx - 20, y + 35);
-            ctx.lineTo(cx - 20, y + 41);
+            ctx.moveTo(cx - (18 * scale), y + (35 * scale));
+            ctx.lineTo(cx - (26 * scale), y + (35 * scale));
+            ctx.moveTo(cx - (20 * scale), y + (35 * scale));
+            ctx.lineTo(cx - (20 * scale), y + (41 * scale));
             ctx.stroke();
         }
     } else {
-        ctx.moveTo(cx, y + 35);
-        ctx.lineTo(cx - 18, y + 40);
-        ctx.moveTo(cx, y + 35);
-        ctx.lineTo(cx - 12, y + 45);
+        // Brazos de persecución hacia la dirección del jugador
+        if (facingRight) {
+            ctx.lineTo(cx + (15 * scale), y + (40 * scale));
+        } else {
+            ctx.lineTo(cx - (15 * scale), y + (40 * scale));
+        }
         ctx.stroke();
     }
 }
 
-// NUEVO: Función para dibujar los Corazones de Vida
-function drawHearts() {
-    for (let i = 0; i < player.lives; i++) {
-        let hx = canvas.width - 140 + (i * 35); // Posición arriba a la derecha
-        let hy = 25;
-        ctx.fillStyle = "#ff2266";
-        ctx.beginPath();
-        ctx.arc(hx - 7, hy, 7, Math.PI, 0, false);
-        ctx.arc(hx + 7, hy, 7, Math.PI, 0, false);
-        ctx.lineTo(hx, hy + 12);
-        ctx.closePath();
-        ctx.fill();
-    }
-}
-
-// NUEVO: Función para dibujar un Botiquín Médico
-function drawMedkit(m) {
+function drawBackground() {
+    // Estrellas
     ctx.fillStyle = "#ffffff";
-    ctx.fillRect(m.x, m.y, m.width, m.height);
-    // Cruz roja del botiquín
-    ctx.fillStyle = "#ff0000";
-    ctx.fillRect(m.x + m.width/2 - 2, m.y + 4, 4, m.height - 8);
-    ctx.fillRect(m.x + 4, m.y + m.height/2 - 2, m.width - 8, 4);
+    stars.forEach(s => ctx.fillRect(s.x, s.y, s.size, s.size));
+
+    // Montañas lejanas (Efecto profundidad)
+    ctx.fillStyle = "#1a1a24";
+    ctx.beginPath();
+    ctx.moveTo(0, floorY);
+    ctx.lineTo(canvas.width * 0.25, floorY - 120);
+    ctx.lineTo(canvas.width * 0.6, floorY);
+    ctx.lineTo(canvas.width * 0.85, floorY - 180);
+    ctx.lineTo(canvas.width, floorY);
+    ctx.fill();
 }
 
-// Detector de Choques
 function checkCollision(rect1, rect2) {
-    return rect1.x < rect2.x + rect2.width &&
-           rect1.x + rect1.width > rect2.x &&
-           rect1.y < rect2.y + rect2.height &&
-           rect1.y + rect1.height > rect2.y;
+    return rect1.x < rect2.x + rect2.width && rect1.x + rect1.width > rect2.x && rect1.y < rect2.y + rect2.height && rect1.y + rect1.height > rect2.y;
 }
 
-// Lógica del Juego
 function update() {
     if (player.lives <= 0) return;
 
-    // Manejo de invulnerabilidad por tiempo
     if (player.isInvulnerable) {
         player.invulnerableTimer--;
-        if (player.invulnerableTimer <= 0) {
-            player.isInvulnerable = false;
-        }
+        if (player.invulnerableTimer <= 0) player.isInvulnerable = false;
     }
 
-    // Controles de movimiento
-    if (keys["a"] && player.x > 0) {
-        player.x -= player.speed;
-        player.facing = -1;
-    }
-    if (keys["d"] && player.x < canvas.width - player.width) {
-        player.x += player.speed;
-        player.facing = 1;
-    }
+    if (keys["a"] && player.x > 0) { player.x -= player.speed; player.facing = -1; }
+    if (keys["d"] && player.x < canvas.width - player.width) { player.x += player.speed; player.facing = 1; }
+    if (keys["w"] && player.isGrounded) { player.velocityY = -player.jumpForce; player.isGrounded = false; }
 
-    // Mecánica de Salto
-    if (keys["w"] && player.isGrounded) {
-        player.velocityY = -player.jumpForce;
-        player.isGrounded = false;
-    }
-
-    // Aplicar gravedad
     player.velocityY += gravity;
     player.y += player.velocityY;
 
-    // NUEVO: Colisión con plataformas flotantes (Soporte superior)
-    let oldIsGrounded = player.isGrounded;
-    player.isGrounded = false;
-
-    // Colisión con el suelo principal
     if (player.y >= floorY - player.height) {
         player.y = floorY - player.height;
         player.velocityY = 0;
         player.isGrounded = true;
     }
 
-    // Verificar si cae encima de alguna plataforma flotante
     platforms.forEach(plat => {
-        // El jugador debe ir cayendo (velocityY >= 0) y sus pies deben estar cerca del tope de la plataforma
-        if (player.velocityY >= 0 &&
-            player.x + player.width - 10 > plat.x &&
-            player.x + 10 < plat.x + plat.width &&
-            player.y + player.height <= plat.y + 8 && 
-            player.y + player.height + player.velocityY >= plat.y) {
-            
-            player.y = plat.y - player.height;
-            player.velocityY = 0;
-            player.isGrounded = true;
+        if (player.velocityY >= 0 && player.x + player.width - 10 > plat.x && player.x + 10 < plat.x + plat.width && player.y + player.height <= plat.y + 8 && player.y + player.height + player.velocityY >= plat.y) {
+            player.y = plat.y - player.height; player.velocityY = 0; player.isGrounded = true;
         }
     });
 
-    // Mover Balas
     bullets.forEach((bullet, bIndex) => {
         bullet.x += bullet.speed;
-        if (bullet.x > canvas.width || bullet.x < 0) {
-            bullets.splice(bIndex, 1);
-        }
+        if (bullet.x > canvas.width || bullet.x < 0) bullets.splice(bIndex, 1);
     });
 
-    // Recolectar Botiquines
-    medkits.forEach((medkit, mIndex) => {
-        if (checkCollision(player, medkit)) {
-            if (player.lives < player.maxLives) {
-                player.lives++; // Cura un corazón
-            }
-            medkits.splice(mIndex, 1); // Desaparece el botiquín
-        }
+    medkits.forEach((m, mIndex) => {
+        if (checkCollision(player, m)) { if (player.lives < player.maxLives) player.lives++; medkits.splice(mIndex, 1); }
     });
 
-    // Mover Enemigos
     enemies.forEach((enemy, eIndex) => {
-        enemy.x -= enemy.speed;
+        // IA DE PERSECUCIÓN INTELIGENTE
+        // Movimiento Horizontal hacia el Jugador
+        if (enemy.x < player.x) {
+            enemy.x += enemy.speed;
+            enemy.facing = 1;
+        } else {
+            enemy.x -= enemy.speed;
+            enemy.facing = -1;
+        }
 
-        // NUEVO: Si un enemigo toca al jugador, pierde vida
+        // Simulación de salto básico para enemigos si el jugador está arriba en plataformas
+        if (player.y < enemy.y && Math.random() < 0.01 && enemy.isGrounded) {
+            enemy.velocityY = -10;
+            enemy.isGrounded = false;
+        }
+        
+        // Aplicar gravedad a enemigos por si caen de plataformas
+        if (enemy.isBoss) {
+            if (enemy.y < floorY - enemy.height) enemy.y += 2; // El boss no sube plataformas por peso, se mantiene firme abajo
+        }
+
         if (checkCollision(player, enemy)) {
             if (!player.isInvulnerable) {
-                player.lives--;
-                player.isInvulnerable = true;
-                player.invulnerableTimer = 90; // Invulnerable por 1.5 segundos (90 frames)
-                
-                // Si se queda sin vidas (Game Over)
-                if (player.lives <= 0) {
-                    alert(`¡Game Over! Puntuación final: ${score}`);
-                    document.location.reload();
-                }
+                player.lives--; player.isInvulnerable = true; player.invulnerableTimer = 90;
+                if (player.lives <= 0) { alert(`¡Game Over! Puntuación: ${score}`); document.location.reload(); }
             }
         }
 
-        if (enemy.x + enemy.width < 0) {
-            enemies.splice(eIndex, 1);
-        }
-
-        // Impacto de Bala vs Enemigo
+        // Colisión de Balas contra Enemigo
         bullets.forEach((bullet, bIndex) => {
             if (checkCollision(bullet, enemy)) {
-                enemies.splice(eIndex, 1);
                 bullets.splice(bIndex, 1);
-                score += 10;
-                scoreEl.innerText = score;
+                enemy.lives--;
+
+                if (enemy.lives <= 0) {
+                    enemies.splice(eIndex, 1);
+                    score += enemy.isBoss ? 100 : 10; // Más puntos por el Boss
+                    scoreEl.innerText = score;
+                }
             }
         });
     });
 }
 
-// Dibujar en pantalla
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Dibujar el Suelo
-    ctx.fillStyle = "#333333";
+    drawBackground();
+
+    // Suelo
+    ctx.fillStyle = "#22222b";
     ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
     ctx.fillStyle = "#00ffcc";
     ctx.fillRect(0, floorY, canvas.width, 4);
 
-    // NUEVO: Dibujar las Plataformas Flotantes
+    // Plataformas
     platforms.forEach(plat => {
-        ctx.fillStyle = "#444444";
+        ctx.fillStyle = "#3a3a4a";
         ctx.fillRect(plat.x, plat.y, plat.width, plat.height);
-        // Borde superior de la plataforma para que resalte
-        ctx.fillStyle = "#888888";
-        ctx.fillRect(plat.x, plat.y, plat.width, 3);
+        ctx.fillStyle = "#00ffcc";
+        ctx.fillRect(plat.x, plat.y, plat.width, 2);
     });
 
-    // NUEVO: Dibujar Botiquines si existen en mapa
-    medkits.forEach(medkit => {
-        drawMedkit(medkit);
+    medkits.forEach(m => {
+        ctx.fillStyle = "#ffffff"; ctx.fillRect(m.x, m.y, m.width, m.height);
+        ctx.fillStyle = "#ff0000"; ctx.fillRect(m.x + m.width/2 - 2, m.y + 4, 4, m.height - 8); ctx.fillRect(m.x + 4, m.y + m.height/2 - 2, m.width - 8, 4);
     });
 
-    // Dibujar Jugador (con efecto parpadeo de daño si es invulnerable)
-    drawStickman(player.x, player.y, player.color, true, player.facing === 1, player.isInvulnerable);
+    // Dibujar Jugador
+    drawStickman(player.x, player.y, player.color, true, player.facing === 1, player.isInvulnerable, 1);
 
-    // Dibujar Enemigos
+    // Dibujar Enemigos e Interfaz de Barra de Vida del Boss
     enemies.forEach(enemy => {
-        drawStickman(enemy.x, enemy.y, enemy.color, false, false, false);
+        const scale = enemy.isBoss ? 2 : 1;
+        drawStickman(enemy.x, enemy.y, enemy.color, false, enemy.facing === 1, false, scale);
+
+        // NUEVO: Si es el Boss, dibujar su barra de vida encima
+        if (enemy.isBoss) {
+            const barWidth = 80;
+            const barHeight = 8;
+            ctx.fillStyle = "#333";
+            ctx.fillRect(enemy.x, enemy.y - 15, barWidth, barHeight); // Fondo gris
+
+            const currentBarWidth = (enemy.lives / enemy.maxLives) * barWidth;
+            ctx.fillStyle = "#ff0000";
+            ctx.fillRect(enemy.x, enemy.y - 15, currentBarWidth, barHeight); // Vida roja
+        }
     });
 
-    // Dibujar Balas
-    bullets.forEach(bullet => {
-        ctx.fillStyle = bullet.color;
-        ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
-    });
+    bullets.forEach(b => { ctx.fillStyle = b.color; ctx.fillRect(b.x, b.y, b.width, b.height); });
 
-    // NUEVO: Dibujar Interfaz de Corazones
-    drawHearts();
+    // Corazones de vida en pantalla
+    for (let i = 0; i < player.lives; i++) {
+        let hx = canvas.width - 150 + (i * 35);
+        let hy = 35;
+        ctx.fillStyle = "#ff2266"; ctx.beginPath(); ctx.arc(hx - 7, hy, 7, Math.PI, 0, false); ctx.arc(hx + 7, hy, 7, Math.PI, 0, false); ctx.lineTo(hx, hy + 12); ctx.closePath(); ctx.fill();
+    }
 }
 
-function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
-}
-
+function loop() { update(); draw(); requestAnimationFrame(loop); }
 loop();
