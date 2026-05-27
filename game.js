@@ -33,18 +33,30 @@ let gameTimer = 0;
 let dragonSpawned = false;
 let dragonWarning = false;
 
-// ==========================================
-// NUEVO: SISTEMA DE RONDAS
-// ==========================================
+// SISTEMA DE RONDAS Y MEJORAS DE INTERMEDIO
 let currentRound = 1;
-let enemiesLeftInRound = 20; // Ronda 1 empieza con 20
+let enemiesLeftInRound = 20; 
 let enemiesSpawnedInRound = 0;
 let isRoundBreak = false;
-let roundBreakTimer = 0; // Segundos restantes para la siguiente ronda
+let roundBreakTimer = 0; 
+
+// Estructura de las opciones del menú de intermedio
+const upgradeOptions = [
+    { id: "red_heart", text: "+1 Corazón Rojo Max", color: "#ff2266", x: 0, y: 0, w: 280, h: 70 },
+    { id: "blue_heart", text: "+1 Escudo Azul Max", color: "#00bfff", x: 0, y: 0, w: 280, h: 70 },
+    { id: "max_ammo", text: "+10 Balas en Cargador", color: "#ffff00", x: 0, y: 0, w: 280, h: 70 }
+];
+
+// Modificadores permanentes comprados por el usuario
+const permanentUpgrades = {
+    bonusMaxLives: 0,
+    bonusMaxShield: 0,
+    bonusMaxAmmo: 0
+};
 
 function getTotalEnemiesForRound(round) {
     if (round === 1) return 20;
-    return 20 + (round - 1) * 50; // Cada ronda suma 50 enemigos más
+    return 20 + (round - 1) * 50; 
 }
 
 function startNextRound() {
@@ -52,6 +64,17 @@ function startNextRound() {
     enemiesSpawnedInRound = 0;
     enemiesLeftInRound = getTotalEnemiesForRound(currentRound);
     isRoundBreak = false;
+}
+
+// Recalcula los atributos del jugador sumando las mejoras permanentes
+function updatePlayerStats() {
+    player.maxLives = 3 + permanentUpgrades.bonusMaxLives;
+    shieldSystem.max = 3 + permanentUpgrades.bonusMaxShield;
+    
+    // Ajustar cargadores base según el arma actual + el bono permanente
+    if (player.currentWeapon === "pistola") player.maxAmmo = 9 + permanentUpgrades.bonusMaxAmmo;
+    if (player.currentWeapon === "mp5") player.maxAmmo = 20 + permanentUpgrades.bonusMaxAmmo;
+    if (player.currentWeapon === "rifle") player.maxAmmo = 5 + permanentUpgrades.bonusMaxAmmo;
 }
 // ==========================================
 
@@ -123,8 +146,9 @@ window.addEventListener("mousemove", e => {
     player.facing = (mouseX >= player.x + player.width / 2) ? 1 : -1;
 });
 
-// Escuchar Clics en la pantalla para el botón de Play
+// Escuchar Clics en la pantalla (Menú de Inicio y Menú de Intermedio)
 window.addEventListener("click", e => {
+    // Clic en menú principal
     if (gameState === "menu") {
         if (
             mouseX >= playButton.x &&
@@ -135,11 +159,36 @@ window.addEventListener("click", e => {
             gameState = "playing";
         }
     }
+    
+    // Clic en las opciones del menú de intermedio
+    if (gameState === "playing" && isRoundBreak) {
+        upgradeOptions.forEach(opt => {
+            if (mouseX >= opt.x && mouseX <= opt.x + opt.w && mouseY >= opt.y && mouseY <= opt.y + opt.h) {
+                // Aplicar la mejora correspondiente
+                if (opt.id === "red_heart") {
+                    permanentUpgrades.bonusMaxLives++;
+                    updatePlayerStats();
+                    player.lives = player.maxLives; // Cura por completo la vida roja al mejorarla
+                } else if (opt.id === "blue_heart") {
+                    permanentUpgrades.bonusMaxShield++;
+                    updatePlayerStats();
+                    shieldSystem.current = shieldSystem.max; // Recarga el escudo al mejorarlo
+                } else if (opt.id === "max_ammo") {
+                    permanentUpgrades.bonusMaxAmmo += 10;
+                    updatePlayerStats();
+                    player.ammo = player.maxAmmo; // Recarga el arma al mejorarla
+                }
+                
+                // Saltar el resto del tiempo de espera para comenzar la ronda inmediatamente
+                startNextRound();
+            }
+        });
+    }
 });
 
 // Escuchar teclado
 window.addEventListener("keydown", e => {
-    if (gameState !== "playing") return; 
+    if (gameState !== "playing" || isRoundBreak) return; // No permitir acciones en intermedio
     
     const key = e.key.toLowerCase();
     if (key === "t") { showShop = !showShop; isPaused = showShop; return; }
@@ -166,13 +215,15 @@ window.addEventListener("keyup", e => {
 
 function equipWeapon(weapon) {
     player.currentWeapon = weapon;
-    if (weapon === "mp5") { player.maxAmmo = 20; player.ammo = 20; player.shootCooldown = 130; }
-    if (weapon === "rifle") { player.maxAmmo = 5; player.ammo = 5; player.shootCooldown = 800; } 
+    updatePlayerStats(); // Calcula la munición máxima del arma nueva añadiendo los bonos guardados
+    player.ammo = player.maxAmmo;
+    if (weapon === "mp5") { player.shootCooldown = 130; }
+    if (weapon === "rifle") { player.shootCooldown = 800; } 
 }
 
 // Disparar con barra espaciadora
 window.addEventListener("keydown", e => {
-    if (gameState !== "playing") return; 
+    if (gameState !== "playing" || isRoundBreak) return; 
     
     if (e.key === " " && player.lives > 0 && !isPaused) {
         if (player.isReloading) return;
@@ -214,17 +265,16 @@ function startReload() {
     else player.reloadTimer = 80;
 }
 
-// Reloj interno del juego (Maneja timers de 1 segundo)
+// Reloj interno del juego
 setInterval(() => {
     if (gameState !== "playing" || isPaused || player.lives <= 0) return; 
     
-    // Manejo de la cuenta regresiva entre rondas
     if (isRoundBreak) {
         roundBreakTimer--;
         if (roundBreakTimer <= 0) {
             startNextRound();
         }
-        return; // Detiene el reloj del dragón mientras se descansa
+        return; 
     }
 
     gameTimer++;
@@ -271,11 +321,10 @@ function spawnEnemy() {
         lastGrenade: Date.now() + Math.random() * 2000
     });
 }
-setInterval(spawnEnemy, 2500); // Se reduce el tiempo de spawn para soportar más enemigos por ronda
+setInterval(spawnEnemy, 2500); 
 
 // Generador de Enemigos Voladores
 function sampleFlyingSpawn() {
-    // Solo permitir voladores a partir de la ronda 2
     let maxForThisRound = getTotalEnemiesForRound(currentRound);
     return (currentRound >= 2 && enemiesSpawnedInRound < maxForThisRound && !isRoundBreak);
 }
@@ -350,8 +399,12 @@ function update() {
     // Verificación de fin de ronda
     if (enemiesLeftInRound <= 0 && !isRoundBreak) {
         isRoundBreak = true;
-        roundBreakTimer = 10; // 10 segundos de espera
+        roundBreakTimer = 10; 
+        keys = {}; // Limpia las teclas pulsadas para que el stickman no corra solo al pausar
     }
+
+    // SI ESTAMOS EN INTERMEDIO, DETENEMOS LAS FÍSICAS DE LA BATALLA (PAUSA DINÁMICA)
+    if (isRoundBreak) return;
 
     if (keys["o"] && !player.isInvulnerable && shieldSystem.current < shieldSystem.max) {
         shieldSystem.isCharging = true;
@@ -481,7 +534,7 @@ function update() {
                 bullets.splice(bIndex, 1);
                 if (enemy.lives <= 0) {
                     enemies.splice(eIndex, 1);
-                    enemiesLeftInRound--; // Reducir los enemigos restantes de la ronda
+                    enemiesLeftInRound--; 
                     score += enemy.isBoss ? 150 : 50; 
                     scoreEl.innerText = score;
                 }
@@ -683,9 +736,7 @@ function draw() {
         ctx.fillStyle = "#00bfff"; ctx.beginPath(); ctx.arc(sx-7, sy, 7, Math.PI, 0, false); ctx.arc(sx+7, sy, 7, Math.PI, 0, false); ctx.lineTo(sx, sy+12); ctx.closePath(); ctx.fill();
     }
 
-    // ==========================================
-    // NUEVO: RENDERIZAR HUD DE RONDAS
-    // ==========================================
+    // HUD RONDAS BASE
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 24px Arial";
     ctx.fillText(`RONDA: ${currentRound}`, 25, 45);
@@ -694,16 +745,49 @@ function draw() {
     ctx.fillStyle = "#ff3333";
     ctx.fillText(`Enemigos restantes: ${enemiesLeftInRound > 0 ? enemiesLeftInRound : 0}`, 25, 75);
 
-    // Pantalla de Espera entre Rondas
+    // ==========================================
+    // NUEVO: MENÚ INTERMEDIO CON 3 OPCIONES SELECCIONABLES
+    // ==========================================
     if (isRoundBreak) {
-        ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
-        ctx.fillRect(0, canvas.height * 0.4 - 40, canvas.width, 100);
+        // Fondo translúcido total para enfocar el menú
+        ctx.fillStyle = "rgba(10, 10, 20, 0.85)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         ctx.fillStyle = "#00ffcc";
-        ctx.font = "bold 32px Arial";
+        ctx.font = "bold 36px Arial";
         ctx.textAlign = "center";
-        ctx.fillText(`PREPÁRATE - SIGUIENTE RONDA EN: ${roundBreakTimer}s`, canvas.width / 2, canvas.height * 0.45);
-        ctx.textAlign = "left"; // Restaurar
+        ctx.fillText(`¡RONDA COMPLETADA!`, canvas.width / 2, canvas.height * 0.25);
+        
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "20px Arial";
+        ctx.fillText(`Próxima ronda en: ${roundBreakTimer}s. Elige una mejora permanente para continuar:`, canvas.width / 2, canvas.height * 0.32);
+
+        // Renderizado dinámico y centrado de los 3 botones
+        const startX = canvas.width / 2 - ((upgradeOptions.length * 300) - 20) / 2;
+        
+        upgradeOptions.forEach((opt, index) => {
+            opt.x = startX + (index * 300);
+            opt.y = canvas.height * 0.45;
+
+            // Verificar Hover (si el mouse está encima del botón)
+            let isHover = mouseX >= opt.x && mouseX <= opt.x + opt.w && mouseY >= opt.y && mouseY <= opt.y + opt.h;
+
+            // Dibujar botón base
+            ctx.fillStyle = isHover ? opt.color : "#2a2a3a";
+            ctx.fillRect(opt.x, opt.y, opt.w, opt.h);
+
+            // Borde
+            ctx.strokeStyle = opt.color;
+            ctx.lineWidth = 3;
+            ctx.strokeRect(opt.x, opt.y, opt.w, opt.h);
+
+            // Texto de la opción
+            ctx.fillStyle = isHover ? "#000000" : "#ffffff";
+            ctx.font = "bold 18px Arial";
+            ctx.fillText(opt.text, opt.x + opt.w / 2, opt.y + opt.h / 2 + 6);
+        });
+
+        ctx.textAlign = "left"; // Restaurar alineación
     }
     // ==========================================
 
@@ -718,7 +802,7 @@ function draw() {
     ctx.fillText("Mantén 'O' quieto por 5s para recargar Overshield", 25, canvas.height - 50);
 
     // Advertencia Dragón
-    if (dragonWarning) {
+    if (dragonWarning && !isRoundBreak) {
         ctx.fillStyle = "rgba(255, 0, 0, " + (Math.sin(Date.now() / 100) * 0.3 + 0.4) + ")"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#ffffff"; ctx.font = "bold 50px Arial"; ctx.textAlign = "center";
         ctx.fillText("⚠️ ¡EL DRAGÓN SUPREMO DESPIERTA EN 5 SEGUNDOS! ⚠️", canvas.width / 2, canvas.height * 0.4);
@@ -748,4 +832,5 @@ function loop() {
     draw(); 
     requestAnimationFrame(loop); 
 }
+loop();
 loop();
