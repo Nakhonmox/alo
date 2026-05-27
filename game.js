@@ -16,7 +16,7 @@ const floorY = canvas.height - 60;
 // ==========================================
 // SISTEMA DE ESTADOS DEL JUEGO
 // ==========================================
-let gameState = "menu"; // Estados posibles: "menu", "playing"
+let gameState = "menu"; // "menu", "playing"
 
 const playButton = {
     x: canvas.width / 2 - 100,
@@ -47,16 +47,23 @@ const upgradeOptions = [
     { id: "max_ammo", text: "+10 Balas en Cargador", color: "#ffff00", x: 0, y: 0, w: 280, h: 70 }
 ];
 
-// Modificadores permanentes comprados por el usuario
+// Modificadores permanentes guardados
 const permanentUpgrades = {
     bonusMaxLives: 0,
     bonusMaxShield: 0,
     bonusMaxAmmo: 0
 };
 
+// ESTRUCTURA COMPLETA DE ARMAS DE LA TIENDA
+const weaponsCatalog = {
+    pistola: { name: "Pistola Base", baseAmmo: 9, cooldown: 400, damage: 1, cost: 0, purchased: true, color: "#ffffff" },
+    mp5:     { name: "Subfusil MP5", baseAmmo: 20, cooldown: 130, damage: 1, cost: 1000, purchased: false, color: "#ffff00" },
+    rifle:   { name: "Rifle Pesado", baseAmmo: 5, cooldown: 800, damage: 2, cost: 3000, purchased: false, color: "#00bfff" }
+};
+
 function getTotalEnemiesForRound(round) {
     if (round === 1) return 20;
-    return 20 + (round - 1) * 50; 
+    return 20 + (round - 1) * 15; 
 }
 
 function startNextRound() {
@@ -64,6 +71,11 @@ function startNextRound() {
     enemiesSpawnedInRound = 0;
     enemiesLeftInRound = getTotalEnemiesForRound(currentRound);
     isRoundBreak = false;
+    
+    enemies = [];
+    bullets = [];
+    enemyBullets = [];
+    grenades = [];
 }
 
 // Recalcula los atributos del jugador sumando las mejoras permanentes
@@ -71,14 +83,14 @@ function updatePlayerStats() {
     player.maxLives = 3 + permanentUpgrades.bonusMaxLives;
     shieldSystem.max = 3 + permanentUpgrades.bonusMaxShield;
     
-    // Ajustar cargadores base según el arma actual + el bono permanente
-    if (player.currentWeapon === "pistola") player.maxAmmo = 9 + permanentUpgrades.bonusMaxAmmo;
-    if (player.currentWeapon === "mp5") player.maxAmmo = 20 + permanentUpgrades.bonusMaxAmmo;
-    if (player.currentWeapon === "rifle") player.maxAmmo = 5 + permanentUpgrades.bonusMaxAmmo;
+    // Obtener los datos del arma actualmente equipada
+    const currentWeaponData = weaponsCatalog[player.currentWeapon];
+    player.maxAmmo = currentWeaponData.baseAmmo + permanentUpgrades.bonusMaxAmmo;
+    player.shootCooldown = currentWeaponData.cooldown;
 }
 // ==========================================
 
-// SISTEMA DE OVERSHIELD (Escudo de Metal tipo Fortnite)
+// SISTEMA DE OVERSHIELD
 const shieldSystem = {
     current: 3,
     max: 3,
@@ -87,7 +99,7 @@ const shieldSystem = {
     requiredFrames: 300
 };
 
-// 1. Configuración del Jugador
+// Configuración del Jugador
 const player = {
     x: 150,
     y: floorY - 80,
@@ -104,10 +116,8 @@ const player = {
     isInvulnerable: false,
     invulnerableTimer: 0,
     
-    // SISTEMA DE ARMAS
+    // Configuración inicial de arma
     currentWeapon: "pistola", 
-    hasMP5: false,
-    hasRifle: false, 
     ammo: 9,
     maxAmmo: 9,
     isReloading: false,
@@ -123,7 +133,7 @@ let enemies = [];
 let medkits = [];
 let dragon = null;     
 
-// 6 plataformas escalonadas de forma accesible
+// Plataformas
 const platforms = [
     { x: canvas.width * 0.1, y: floorY - 120, width: 200, height: 15 },
     { x: canvas.width * 0.3, y: floorY - 240, width: 200, height: 15 },
@@ -133,22 +143,23 @@ const platforms = [
     { x: canvas.width * 0.55, y: floorY - 500, width: 250, height: 15 }
 ];
 
-// Fondo (Estrellas)
+// Fondo
 const stars = [];
 for (let i = 0; i < 60; i++) {
     stars.push({ x: Math.random() * canvas.width, y: Math.random() * (canvas.height * 0.6), size: Math.random() * 2 });
 }
 
-// Rastrear posición del mouse
+// Rastrear mouse
 window.addEventListener("mousemove", e => {
     mouseX = e.clientX;
     mouseY = e.clientY;
-    player.facing = (mouseX >= player.x + player.width / 2) ? 1 : -1;
+    if (!isRoundBreak && !isPaused) {
+        player.facing = (mouseX >= player.x + player.width / 2) ? 1 : -1;
+    }
 });
 
-// Escuchar Clics en la pantalla (Menú de Inicio y Menú de Intermedio)
+// Escuchar Clics (Menú de Inicio y Menú de Intermedio)
 window.addEventListener("click", e => {
-    // Clic en menú principal
     if (gameState === "menu") {
         if (
             mouseX >= playButton.x &&
@@ -158,51 +169,67 @@ window.addEventListener("click", e => {
         ) {
             gameState = "playing";
         }
+        return;
     }
     
-    // Clic en las opciones del menú de intermedio
     if (gameState === "playing" && isRoundBreak) {
         upgradeOptions.forEach(opt => {
             if (mouseX >= opt.x && mouseX <= opt.x + opt.w && mouseY >= opt.y && mouseY <= opt.y + opt.h) {
-                // Aplicar la mejora correspondiente
                 if (opt.id === "red_heart") {
                     permanentUpgrades.bonusMaxLives++;
                     updatePlayerStats();
-                    player.lives = player.maxLives; // Cura por completo la vida roja al mejorarla
+                    player.lives = player.maxLives; 
                 } else if (opt.id === "blue_heart") {
                     permanentUpgrades.bonusMaxShield++;
                     updatePlayerStats();
-                    shieldSystem.current = shieldSystem.max; // Recarga el escudo al mejorarlo
+                    shieldSystem.current = shieldSystem.max; 
                 } else if (opt.id === "max_ammo") {
                     permanentUpgrades.bonusMaxAmmo += 10;
                     updatePlayerStats();
-                    player.ammo = player.maxAmmo; // Recarga el arma al mejorarla
+                    player.ammo = player.maxAmmo; 
                 }
-                
-                // Saltar el resto del tiempo de espera para comenzar la ronda inmediatamente
                 startNextRound();
             }
         });
     }
 });
 
-// Escuchar teclado
+// Lógica de interacción con la Tienda y Teclado
 window.addEventListener("keydown", e => {
-    if (gameState !== "playing" || isRoundBreak) return; // No permitir acciones en intermedio
+    if (gameState !== "playing" || isRoundBreak) return; 
     
     const key = e.key.toLowerCase();
     if (key === "t") { showShop = !showShop; isPaused = showShop; return; }
     
     if (showShop) {
-        if (key === "1" && score >= 1000 && !player.hasMP5) {
-            score -= 1000; scoreEl.innerText = score;
-            player.hasMP5 = true; equipWeapon("mp5");
+        // Opción 1: Pistola Base (Siempre comprada, solo equipar)
+        if (key === "1") {
+            equipWeapon("pistola");
             showShop = false; isPaused = false;
         }
-        if (key === "2" && score >= 3000 && !player.hasRifle) {
-            score -= 3000; scoreEl.innerText = score;
-            player.hasRifle = true; equipWeapon("rifle");
-            showShop = false; isPaused = false;
+        // Opción 2: Subfusil MP5
+        if (key === "2") {
+            if (weaponsCatalog.mp5.purchased) {
+                equipWeapon("mp5");
+                showShop = false; isPaused = false;
+            } else if (score >= weaponsCatalog.mp5.cost) {
+                score -= weaponsCatalog.mp5.cost; scoreEl.innerText = score;
+                weaponsCatalog.mp5.purchased = true;
+                equipWeapon("mp5");
+                showShop = false; isPaused = false;
+            }
+        }
+        // Opción 3: Rifle Pesado
+        if (key === "3") {
+            if (weaponsCatalog.rifle.purchased) {
+                equipWeapon("rifle");
+                showShop = false; isPaused = false;
+            } else if (score >= weaponsCatalog.rifle.cost) {
+                score -= weaponsCatalog.rifle.cost; scoreEl.innerText = score;
+                weaponsCatalog.rifle.purchased = true;
+                equipWeapon("rifle");
+                showShop = false; isPaused = false;
+            }
         }
         return;
     }
@@ -213,19 +240,18 @@ window.addEventListener("keyup", e => {
     if (gameState === "playing") keys[e.key === " " ? "space" : e.key.toLowerCase()] = false;
 });
 
-function equipWeapon(weapon) {
-    player.currentWeapon = weapon;
-    updatePlayerStats(); // Calcula la munición máxima del arma nueva añadiendo los bonos guardados
-    player.ammo = player.maxAmmo;
-    if (weapon === "mp5") { player.shootCooldown = 130; }
-    if (weapon === "rifle") { player.shootCooldown = 800; } 
+function equipWeapon(weaponId) {
+    player.currentWeapon = weaponId;
+    player.isReloading = false; // Cancela recargas pendientes de otras armas
+    updatePlayerStats(); 
+    player.ammo = player.maxAmmo; // Recarga completa al equipar
 }
 
-// Disparar con barra espaciadora
+// Disparar
 window.addEventListener("keydown", e => {
-    if (gameState !== "playing" || isRoundBreak) return; 
+    if (gameState !== "playing" || isRoundBreak || isPaused) return; 
     
-    if (e.key === " " && player.lives > 0 && !isPaused) {
+    if (e.key === " " && player.lives > 0) {
         if (player.isReloading) return;
         const now = Date.now();
         if (now - player.lastShotTime < player.shootCooldown) return;
@@ -238,10 +264,7 @@ window.addEventListener("keydown", e => {
             let originY = player.y + 35;
             let angle = Math.atan2(mouseY - originY, mouseX - originX);
 
-            let bulletDamage = player.currentWeapon === "rifle" ? 2 : 1;
-            let bulletColor = "#ff0055";
-            if (player.currentWeapon === "mp5") bulletColor = "#ffff00";
-            if (player.currentWeapon === "rifle") bulletColor = "#00bfff";
+            const weaponData = weaponsCatalog[player.currentWeapon];
 
             bullets.push({
                 x: originX,
@@ -250,8 +273,8 @@ window.addEventListener("keydown", e => {
                 height: player.currentWeapon === "rifle" ? 6 : 4,
                 speedX: Math.cos(angle) * 18,
                 speedY: Math.sin(angle) * 18,
-                color: bulletColor,
-                damage: bulletDamage
+                color: weaponData.color,
+                damage: weaponData.damage
             });
             if (player.ammo <= 0) startReload();
         }
@@ -297,14 +320,14 @@ setInterval(() => {
     }
 }, 1000);
 
-// Generador de Enemigos Normales
+// Spawners
 function sampleEnemySpawn() {
     let maxForThisRound = getTotalEnemiesForRound(currentRound);
     return (enemiesSpawnedInRound < maxForThisRound && !isRoundBreak);
 }
 
 function spawnEnemy() {
-    if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning) return; 
+    if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return; 
     if (!sampleEnemySpawn()) return;
 
     enemiesSpawnedInRound++;
@@ -323,14 +346,13 @@ function spawnEnemy() {
 }
 setInterval(spawnEnemy, 2500); 
 
-// Generador de Enemigos Voladores
 function sampleFlyingSpawn() {
     let maxForThisRound = getTotalEnemiesForRound(currentRound);
     return (currentRound >= 2 && enemiesSpawnedInRound < maxForThisRound && !isRoundBreak);
 }
 
 function spawnFlyingEnemy() {
-    if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning) return; 
+    if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return; 
     if (!sampleFlyingSpawn()) return;
 
     enemiesSpawnedInRound++;
@@ -347,7 +369,6 @@ function spawnFlyingEnemy() {
 }
 setInterval(spawnFlyingEnemy, 4000);
 
-// Generador de Jefes Tanque
 function spawnBoss() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return; 
     enemies.push({
@@ -366,11 +387,11 @@ function spawnBoss() {
 setInterval(spawnBoss, 30000);
 
 setInterval(() => { 
-    if (gameState === "playing" && player.lives > 0 && !isPaused) medkits.push({ x: Math.random() * (canvas.width - 100) + 50, y: floorY - 25, width: 25, height: 25 }); 
+    if (gameState === "playing" && player.lives > 0 && !isPaused && !isRoundBreak) medkits.push({ x: Math.random() * (canvas.width - 100) + 50, y: floorY - 25, width: 25, height: 25 }); 
 }, 60000);
 
 function damagePlayer(amount) {
-    if (player.isInvulnerable || player.lives <= 0) return;
+    if (player.isInvulnerable || player.lives <= 0 || isRoundBreak) return;
     
     shieldSystem.isCharging = false;
     shieldSystem.chargeProgress = 0;
@@ -396,14 +417,18 @@ function damagePlayer(amount) {
 function update() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused) return; 
 
-    // Verificación de fin de ronda
     if (enemiesLeftInRound <= 0 && !isRoundBreak) {
         isRoundBreak = true;
         roundBreakTimer = 10; 
-        keys = {}; // Limpia las teclas pulsadas para que el stickman no corra solo al pausar
+        keys = {}; 
+        enemies = [];
+        bullets = [];
+        enemyBullets = [];
+        grenades = [];
+        dragonSpawned = false;
+        dragon = null;
     }
 
-    // SI ESTAMOS EN INTERMEDIO, DETENEMOS LAS FÍSICAS DE LA BATALLA (PAUSA DINÁMICA)
     if (isRoundBreak) return;
 
     if (keys["o"] && !player.isInvulnerable && shieldSystem.current < shieldSystem.max) {
@@ -607,14 +632,11 @@ function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Fondo Estrellas
     ctx.fillStyle = "#ffffff"; stars.forEach(s => ctx.fillRect(s.x, s.y, s.size, s.size));
 
-    // RENDERIZAR MENÚ DE INICIO
     if (gameState === "menu") {
         ctx.fillStyle = "rgba(10, 10, 20, 0.8)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-
         ctx.fillStyle = "#00ffcc";
         ctx.font = "bold 60px Arial";
         ctx.textAlign = "center";
@@ -625,40 +647,32 @@ function draw() {
 
         ctx.fillStyle = isHover ? "#00ffcc" : "#3a3a4a";
         ctx.fillRect(playButton.x, playButton.y, playButton.width, playButton.height);
-        
         ctx.strokeStyle = "#00ffcc";
         ctx.lineWidth = 3;
         ctx.strokeRect(playButton.x, playButton.y, playButton.width, playButton.height);
-
         ctx.fillStyle = isHover ? "#000000" : "#ffffff";
         ctx.font = "bold 24px Arial";
         ctx.fillText("PLAY", canvas.width / 2, canvas.height / 2 + 38);
-
         ctx.fillStyle = "#888888";
         ctx.font = "16px Arial";
         ctx.fillText("Controles: A/D (Moverse) - W (Saltar) - Espacio (Disparar) - T (Tienda) - O (Escudo)", canvas.width / 2, canvas.height * 0.75);
-
         ctx.textAlign = "left"; 
         return; 
     }
 
-    // Montañas de fondo
     ctx.fillStyle = "#111116"; ctx.beginPath(); ctx.moveTo(0, floorY); ctx.lineTo(canvas.width*0.25, floorY-120); ctx.lineTo(canvas.width*0.6, floorY); ctx.lineTo(canvas.width*0.85, floorY-180); ctx.lineTo(canvas.width, floorY); ctx.fill();
 
-    // Escenario
     ctx.fillStyle = "#1e1e24"; ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
     ctx.fillStyle = "#00ffcc"; ctx.fillRect(0, floorY, canvas.width, 4);
     platforms.forEach(plat => { ctx.fillStyle = "#3a3a4a"; ctx.fillRect(plat.x, plat.y, plat.width, plat.height); ctx.fillStyle = "#00ffcc"; ctx.fillRect(plat.x, plat.y, plat.width, 2); });
     medkits.forEach(m => { ctx.fillStyle = "#ffffff"; ctx.fillRect(m.x, m.y, m.width, m.height); ctx.fillStyle = "#ff0000"; ctx.fillRect(m.x + m.width/2 - 2, m.y + 4, 4, m.height - 8); ctx.fillRect(m.x + 4, m.y + m.height/2 - 2, m.width - 8, 4); });
 
-    // Dibujar Zonas Rojas de las Granadas
     grenades.forEach(g => {
         ctx.fillStyle = "rgba(255, 0, 0, 0.35)";
         ctx.beginPath(); ctx.arc(g.x, g.y, g.radius, 0, Math.PI*2); ctx.fill();
         ctx.strokeStyle = "#ff0000"; ctx.lineWidth = 2; ctx.stroke();
     });
 
-    // Dibujar Jugador
     drawStickman(player.x, player.y, player.color, true, player.facing === 1, player.isInvulnerable, 1, false);
     
     if (shieldSystem.isCharging) {
@@ -667,7 +681,6 @@ function draw() {
         ctx.fillStyle = "#00bfff"; ctx.fillRect(player.x - 5, player.y - 20, 50 * pct, 6);
     }
 
-    // Dibujar Enemigos
     enemies.forEach(enemy => {
         const scale = enemy.isBoss ? 2 : 1;
         drawStickman(enemy.x, enemy.y, enemy.color, false, enemy.facing === 1, false, scale, enemy.isFlying);
@@ -677,25 +690,19 @@ function draw() {
         }
     });
 
-    // Dragón
     if (dragonSpawned && dragon) {
         ctx.save();
         let firePulse = Math.sin(Date.now() / 150) * 20;
         ctx.fillStyle = "#4a0072"; 
         ctx.beginPath(); ctx.moveTo(canvas.width, dragon.y + 150); ctx.lineTo(dragon.x + 180, dragon.y + 20); ctx.lineTo(dragon.x + 220, dragon.y + 180); ctx.closePath(); ctx.fill();
-
         ctx.fillStyle = "#5c008a"; 
         ctx.beginPath(); ctx.moveTo(canvas.width, dragon.y + 100); ctx.quadraticCurveTo(dragon.x + 120, dragon.y + 150, dragon.x + 100, dragon.y + 250); ctx.lineTo(canvas.width, dragon.y + 380); ctx.closePath(); ctx.fill();
-
         ctx.strokeStyle = "#7b00b8"; ctx.lineWidth = 3;
         for(let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc(dragon.x + 160 + (i*30), dragon.y + 200 + (i*20), 25, 0, Math.PI); ctx.stroke(); }
-
         ctx.fillStyle = "#6a009c";
         ctx.beginPath(); ctx.moveTo(dragon.x + 140, dragon.y + 230); ctx.quadraticCurveTo(dragon.x + 60, dragon.y + 150, dragon.x + 40, dragon.y + 100); ctx.lineTo(dragon.x - 20, dragon.y + 80); ctx.lineTo(dragon.x + 30, dragon.y + 130); ctx.lineTo(dragon.x + 100, dragon.y + 160); ctx.quadraticCurveTo(dragon.x + 110, dragon.y + 200, dragon.x + 140, dragon.y + 250); ctx.closePath(); ctx.fill();
-
         ctx.fillStyle = "#4a0072"; ctx.beginPath(); ctx.moveTo(dragon.x + 30, dragon.y + 130); ctx.lineTo(dragon.x - 5, dragon.y + 115); ctx.lineTo(dragon.x + 40, dragon.y + 150); ctx.closePath(); ctx.fill();
         ctx.fillStyle = "#9900ff"; ctx.beginPath(); ctx.moveTo(dragon.x + 40, dragon.y + 90); ctx.lineTo(dragon.x + 10, dragon.y + 40); ctx.lineTo(dragon.x + 60, dragon.y + 95); ctx.closePath(); ctx.fill();
-
         ctx.fillStyle = "#ffff00"; ctx.shadowColor = "#ffea00"; ctx.shadowBlur = 15;
         ctx.beginPath(); ctx.arc(dragon.x + 25, dragon.y + 95, 9, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = "#000000"; ctx.beginPath(); ctx.arc(dragon.x + 23, dragon.y + 95, 3, 0, Math.PI * 2); ctx.fill();
@@ -706,15 +713,12 @@ function draw() {
             ctx.fillStyle = "rgba(255, 69, 0, " + (0.3 + Math.abs(firePulse/40)) + ")";
             ctx.beginPath(); ctx.arc(dragon.x + 25, dragon.y + 125, 25 + firePulse/2, 0, Math.PI*2); ctx.fill();
         }
-
         ctx.fillStyle = "#5c008a"; ctx.beginPath(); ctx.moveTo(dragon.x + 120, dragon.y + 270); ctx.lineTo(dragon.x + 50, dragon.y + 310); ctx.lineTo(dragon.x + 30, dragon.y + 305); ctx.moveTo(dragon.x + 50, dragon.y + 310); ctx.lineTo(dragon.x + 35, dragon.y + 320); ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 4; ctx.stroke();
-
         ctx.fillStyle = "#222"; ctx.fillRect(canvas.width / 2 - 200, 30, 400, 20);
         ctx.fillStyle = "#9900ff"; ctx.fillRect(canvas.width / 2 - 200, 30, (dragon.lives / dragon.maxLives) * 400, 20);
         ctx.fillStyle = "#fff"; ctx.font = "bold 14px Arial"; ctx.fillText("DRAGÓN SUPREMO", canvas.width / 2 - 60, 45);
     }
 
-    // Proyectiles
     bullets.forEach(b => { ctx.fillStyle = b.color; ctx.fillRect(b.x, b.y, b.width, b.height); });
     enemyBullets.forEach(eb => {
         ctx.fillStyle = eb.color;
@@ -724,74 +728,49 @@ function draw() {
         } else { ctx.fillRect(eb.x, eb.y, eb.width, eb.height); }
     });
 
-    // Interfaz Corazones Rojos
-    for (let i = 0; i < player.lives; i++) {
+    for (let i = 0; i < player.maxLives; i++) {
         let hx = canvas.width - 150 + (i * 35); let hy = 35;
-        ctx.fillStyle = "#ff2266"; ctx.beginPath(); ctx.arc(hx-7, hy, 7, Math.PI, 0, false); ctx.arc(hx+7, hy, 7, Math.PI, 0, false); ctx.lineTo(hx, hy+12); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = i < player.lives ? "#ff2266" : "#441122"; 
+        ctx.beginPath(); ctx.arc(hx-7, hy, 7, Math.PI, 0, false); ctx.arc(hx+7, hy, 7, Math.PI, 0, false); ctx.lineTo(hx, hy+12); ctx.closePath(); ctx.fill();
     }
 
-    // Interfaz Overshield Azul
-    for (let i = 0; i < shieldSystem.current; i++) {
+    for (let i = 0; i < shieldSystem.max; i++) {
         let sx = canvas.width - 150 + (i * 35); let sy = 65; 
-        ctx.fillStyle = "#00bfff"; ctx.beginPath(); ctx.arc(sx-7, sy, 7, Math.PI, 0, false); ctx.arc(sx+7, sy, 7, Math.PI, 0, false); ctx.lineTo(sx, sy+12); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = i < shieldSystem.current ? "#00bfff" : "#003355"; 
+        ctx.beginPath(); ctx.arc(sx-7, sy, 7, Math.PI, 0, false); ctx.arc(sx+7, sy, 7, Math.PI, 0, false); ctx.lineTo(sx, sy+12); ctx.closePath(); ctx.fill();
     }
 
-    // HUD RONDAS BASE
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 24px Arial";
     ctx.fillText(`RONDA: ${currentRound}`, 25, 45);
-    
-    ctx.font = "18px Arial";
-    ctx.fillStyle = "#ff3333";
+    ctx.font = "18px Arial"; ctx.fillStyle = "#ff3333";
     ctx.fillText(`Enemigos restantes: ${enemiesLeftInRound > 0 ? enemiesLeftInRound : 0}`, 25, 75);
 
-    // ==========================================
-    // NUEVO: MENÚ INTERMEDIO CON 3 OPCIONES SELECCIONABLES
-    // ==========================================
+    // MENÚ DE INTERMEDIO
     if (isRoundBreak) {
-        // Fondo translúcido total para enfocar el menú
-        ctx.fillStyle = "rgba(10, 10, 20, 0.85)";
+        ctx.fillStyle = "rgba(12, 12, 28, 0.92)"; 
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#00ffcc"; ctx.font = "bold 42px Arial"; ctx.textAlign = "center";
+        ctx.fillText(`¡RONDA COMPLETADA!`, canvas.width / 2, canvas.height * 0.28);
+        ctx.fillStyle = "#ffffff"; ctx.font = "20px Arial";
+        ctx.fillText(`Siguiente ronda en: ${roundBreakTimer}s`, canvas.width / 2, canvas.height * 0.35);
+        ctx.fillStyle = "#aaaaaa"; ctx.fillText(`Haz clic para elegir una mejora permanente de inmediato:`, canvas.width / 2, canvas.height * 0.39);
 
-        ctx.fillStyle = "#00ffcc";
-        ctx.font = "bold 36px Arial";
-        ctx.textAlign = "center";
-        ctx.fillText(`¡RONDA COMPLETADA!`, canvas.width / 2, canvas.height * 0.25);
-        
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "20px Arial";
-        ctx.fillText(`Próxima ronda en: ${roundBreakTimer}s. Elige una mejora permanente para continuar:`, canvas.width / 2, canvas.height * 0.32);
-
-        // Renderizado dinámico y centrado de los 3 botones
-        const startX = canvas.width / 2 - ((upgradeOptions.length * 300) - 20) / 2;
+        const buttonSpacing = 310;
+        const totalMenuWidth = (upgradeOptions.length * buttonSpacing) - 30;
+        const startX = (canvas.width / 2) - (totalMenuWidth / 2);
         
         upgradeOptions.forEach((opt, index) => {
-            opt.x = startX + (index * 300);
-            opt.y = canvas.height * 0.45;
-
-            // Verificar Hover (si el mouse está encima del botón)
+            opt.x = startX + (index * buttonSpacing); opt.y = canvas.height * 0.48;
             let isHover = mouseX >= opt.x && mouseX <= opt.x + opt.w && mouseY >= opt.y && mouseY <= opt.y + opt.h;
-
-            // Dibujar botón base
-            ctx.fillStyle = isHover ? opt.color : "#2a2a3a";
-            ctx.fillRect(opt.x, opt.y, opt.w, opt.h);
-
-            // Borde
-            ctx.strokeStyle = opt.color;
-            ctx.lineWidth = 3;
-            ctx.strokeRect(opt.x, opt.y, opt.w, opt.h);
-
-            // Texto de la opción
-            ctx.fillStyle = isHover ? "#000000" : "#ffffff";
-            ctx.font = "bold 18px Arial";
+            ctx.fillStyle = isHover ? opt.color : "#222232"; ctx.fillRect(opt.x, opt.y, opt.w, opt.h);
+            ctx.strokeStyle = opt.color; ctx.lineWidth = 3; ctx.strokeRect(opt.x, opt.y, opt.w, opt.h);
+            ctx.fillStyle = isHover ? "#000000" : "#ffffff"; ctx.font = "bold 18px Arial";
             ctx.fillText(opt.text, opt.x + opt.w / 2, opt.y + opt.h / 2 + 6);
         });
-
-        ctx.textAlign = "left"; // Restaurar alineación
+        ctx.textAlign = "left"; 
     }
-    // ==========================================
 
-    // Retículo visual del mouse
     ctx.strokeStyle = "rgba(255, 255, 255, 0.4)"; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.arc(mouseX, mouseY, 6, 0, Math.PI*2); ctx.stroke();
 
@@ -801,7 +780,6 @@ function draw() {
     ctx.font = "14px Arial"; ctx.fillStyle = "#aaa";
     ctx.fillText("Mantén 'O' quieto por 5s para recargar Overshield", 25, canvas.height - 50);
 
-    // Advertencia Dragón
     if (dragonWarning && !isRoundBreak) {
         ctx.fillStyle = "rgba(255, 0, 0, " + (Math.sin(Date.now() / 100) * 0.3 + 0.4) + ")"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#ffffff"; ctx.font = "bold 50px Arial"; ctx.textAlign = "center";
@@ -809,20 +787,44 @@ function draw() {
         ctx.textAlign = "left";
     }
 
-    // Tienda
+    // ==========================================
+    // NUEVO RENDERIZADO DE LA TIENDA DE ARMAS CON EQUIPAMIENTO
+    // ==========================================
     if (showShop) {
-        ctx.fillStyle = "rgba(0, 0, 0, 0.85)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "rgba(10, 10, 20, 0.95)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#00ffcc"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
-        ctx.fillText("TIENDA DE ARMAS (Juego Pausado)", canvas.width / 2, canvas.height * 0.25);
-        ctx.fillStyle = "#ffffff"; ctx.font = "24px Arial"; ctx.fillText(`Tu Puntuación: ${score} pts`, canvas.width / 2, canvas.height * 0.35);
+        ctx.fillText("TIENDA & ARMERÍA (Juego Pausado)", canvas.width / 2, canvas.height * 0.18);
+        ctx.fillStyle = "#ffffff"; ctx.font = "24px Arial"; ctx.fillText(`Tu Puntuación: ${score} pts`, canvas.width / 2, canvas.height * 0.26);
         
-        ctx.fillStyle = player.hasMP5 ? "#555" : (score >= 1000 ? "#00ffcc" : "#ff3333");
-        ctx.fillText(player.hasMP5 ? "[COMPRADO] 1. Subfusil MP5 (Rápido)" : "[Presiona 1] Comprar MP5 - Costo: 1000 pts", canvas.width / 2, canvas.height * 0.5);
+        // 1. Línea de Pistola Base
+        ctx.font = "22px Arial";
+        if (player.currentWeapon === "pistola") {
+            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 1. Pistola Base", canvas.width / 2, canvas.height * 0.42);
+        } else {
+            ctx.fillStyle = "#ffffff"; ctx.fillText("[Presiona 1] Equipar Pistola Base (Ya Adquirida)", canvas.width / 2, canvas.height * 0.42);
+        }
+
+        // 2. Línea de MP5
+        if (player.currentWeapon === "mp5") {
+            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 2. Subfusil MP5", canvas.width / 2, canvas.height * 0.52);
+        } else if (weaponsCatalog.mp5.purchased) {
+            ctx.fillStyle = "#ffff00"; ctx.fillText("[Presiona 2] Equipar Subfusil MP5 (Ya Adquirido)", canvas.width / 2, canvas.height * 0.52);
+        } else {
+            ctx.fillStyle = score >= weaponsCatalog.mp5.cost ? "#ffffff" : "#ff3333";
+            ctx.fillText(`[Presiona 2] Comprar Subfusil MP5 - Costo: ${weaponsCatalog.mp5.cost} pts`, canvas.width / 2, canvas.height * 0.52);
+        }
+
+        // 3. Línea de Rifle Pesado
+        if (player.currentWeapon === "rifle") {
+            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 3. Rifle Pesado", canvas.width / 2, canvas.height * 0.62);
+        } else if (weaponsCatalog.rifle.purchased) {
+            ctx.fillStyle = "#00bfff"; ctx.fillText("[Presiona 3] Equipar Rifle Pesado (Ya Adquirido)", canvas.width / 2, canvas.height * 0.62);
+        } else {
+            ctx.fillStyle = score >= weaponsCatalog.rifle.cost ? "#ffffff" : "#ff3333";
+            ctx.fillText(`[Presiona 3] Comprar Rifle Pesado - Costo: ${weaponsCatalog.rifle.cost} pts`, canvas.width / 2, canvas.height * 0.62);
+        }
         
-        ctx.fillStyle = player.hasRifle ? "#555" : (score >= 3000 ? "#00bfff" : "#ff3333");
-        ctx.fillText(player.hasRifle ? "[COMPRADO] 2. Rifle Pesado (2 de Daño)" : "[Presiona 2] Comprar Rifle Pesado - Costo: 3000 pts", canvas.width / 2, canvas.height * 0.6);
-        
-        ctx.fillStyle = "#aaa"; ctx.font = "18px Arial"; ctx.fillText("Presiona 'T' para volver a la batalla", canvas.width / 2, canvas.height * 0.8);
+        ctx.fillStyle = "#aaa"; ctx.font = "18px Arial"; ctx.fillText("Presiona 'T' para cerrar el menú y volver al juego", canvas.width / 2, canvas.height * 0.82);
         ctx.textAlign = "left";
     }
 }
@@ -832,5 +834,4 @@ function loop() {
     draw(); 
     requestAnimationFrame(loop); 
 }
-loop();
 loop();
