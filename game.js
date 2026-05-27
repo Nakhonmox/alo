@@ -33,7 +33,7 @@ let dragonSpawned = false;
 let dragonWarning = false;
 
 // ==========================================
-// NUEVO: CONFIGURACIÓN DEL SISTEMA DE RONDAS
+// CONFIGURACIÓN DEL SISTEMA DE RONDAS
 // ==========================================
 const roundSystem = {
     currentRound: 1,
@@ -148,7 +148,7 @@ window.addEventListener("click", e => {
             mouseY <= playButton.y + playButton.height
         ) {
             gameState = "playing";
-            startRound(1); // NUEVO: Inicializa la ronda 1 al dar Play
+            startRound(1); // Inicializa la ronda 1 al dar Play
         }
     }
 });
@@ -253,7 +253,7 @@ setInterval(() => {
     }
 }, 1000);
 
-// MODIFICADO: Helper para controlar el spawn de enemigos respetando el límite por ronda
+// Helper para controlar el spawn de enemigos respetando el límite por ronda
 function canSpawnEnemy() {
     return (
         gameState === "playing" &&
@@ -266,7 +266,7 @@ function canSpawnEnemy() {
     );
 }
 
-// Generador de Enemigos Normales (Cada 2.5 segundos para que salgan más fluido debido al volumen por ronda)
+// Generador de Enemigos Normales (Cada 2 segundos para dar dinamismo a las oleadas grandes)
 function spawnEnemy() {
     if (!canSpawnEnemy()) return;
     roundSystem.enemiesSpawned++;
@@ -283,7 +283,7 @@ function spawnEnemy() {
         lastGrenade: Date.now() + Math.random() * 2000
     });
 }
-setInterval(spawnEnemy, 2500); 
+setInterval(spawnEnemy, 2000); 
 
 // Generador de Enemigos Voladores
 function spawnFlyingEnemy() {
@@ -300,7 +300,7 @@ function spawnFlyingEnemy() {
         lives: 1 
     });
 }
-setInterval(spawnFlyingEnemy, 4000);
+setInterval(spawnFlyingEnemy, 3500);
 
 // Generador de Jefes Tanque
 function spawnBoss() {
@@ -319,7 +319,7 @@ function spawnBoss() {
         lastShot: Date.now()
     });
 }
-setInterval(spawnBoss, 20000);
+setInterval(spawnBoss, 15000);
 
 setInterval(() => { 
     if (gameState === "playing" && player.lives > 0 && !isPaused) medkits.push({ x: Math.random() * (canvas.width - 100) + 50, y: floorY - 25, width: 25, height: 25 }); 
@@ -484,10 +484,10 @@ function update() {
                     score += enemy.isBoss ? 150 : 50; 
                     scoreEl.innerText = score;
                     
-                    // MODIFICADO: Restar un enemigo restante de la ronda actual
+                    // Restar enemigo de la ronda actual
                     roundSystem.enemiesRemaining--;
                     
-                    // ¿Se limpió la ronda entera?
+                    // Si se limpian todos, empieza el descanso de 10s
                     if (roundSystem.enemiesRemaining <= 0 && !roundSystem.isIntermission) {
                         startIntermission();
                     }
@@ -566,6 +566,7 @@ function draw() {
 
     // RENDERIZAR MENÚ DE INICIO
     if (gameState === "menu") {
+        ctx.save();
         ctx.fillStyle = "rgba(10, 10, 20, 0.8)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -591,8 +592,7 @@ function draw() {
         ctx.fillStyle = "#888888";
         ctx.font = "16px Arial";
         ctx.fillText("Controles: A/D (Moverse) - W (Saltar) - Espacio (Disparar) - T (Tienda) - O (Escudo)", canvas.width / 2, canvas.height * 0.75);
-
-        ctx.textAlign = "left"; 
+        ctx.restore();
         return; 
     }
 
@@ -681,26 +681,32 @@ function draw() {
     });
 
     // ===================================================
-    // NUEVO: INTERFAZ DE RONDA / CONTADOR (Arriba al centro)
+    // ¡ARREGLADO! INTERFAZ DE RONDA / CONTADOR (Superior Centro)
     // ===================================================
-    ctx.save();
-    ctx.textAlign = "center";
+    ctx.save(); 
+    ctx.textAlign = "center"; // Forzar alineación al centro dentro del bloque
+    
     if (roundSystem.isIntermission) {
-        // Texto de Descanso
+        // Texto de Descanso (Llamativo en Amarillo)
         ctx.fillStyle = "#ffff00";
-        ctx.font = "bold 26px Arial";
-        ctx.fillText(`¡RONDA COMPLETADA! Próxima ronda en: ${roundSystem.intermissionTime}s`, canvas.width / 2, 40);
-    } else {
-        // Texto de Ronda Activa
-        ctx.fillStyle = "#ffffff";
         ctx.font = "bold 28px Arial";
+        ctx.fillText(`¡RONDA COMPLETADA!`, canvas.width / 2, 45);
+        
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "18px Arial";
+        ctx.fillText(`Próxima ronda en: ${roundSystem.intermissionTime}s`, canvas.width / 2, 75);
+    } else {
+        // Texto de Ronda Activa (Cyan brillante)
+        ctx.fillStyle = "#00ffcc";
+        ctx.font = "bold 32px Arial";
         ctx.fillText(`RONDA ${roundSystem.currentRound}`, canvas.width / 2, 45);
         
+        // Contador de Enemigos Faltantes (Rojo alarma)
         ctx.fillStyle = "#ff3333";
-        ctx.font = "18px Arial";
-        ctx.fillText(`Enemigos restantes: ${roundSystem.enemiesRemaining}`, canvas.width / 2, 75);
+        ctx.font = "bold 18px Arial";
+        ctx.fillText(`Enemigos faltantes: ${roundSystem.enemiesRemaining}`, canvas.width / 2, 75);
     }
-    ctx.restore();
+    ctx.restore(); 
     // ===================================================
 
     // Interfaz Corazones Rojos
@@ -727,14 +733,16 @@ function draw() {
 
     // Advertencia Dragón
     if (dragonWarning) {
+        ctx.save();
         ctx.fillStyle = "rgba(255, 0, 0, " + (Math.sin(Date.now() / 100) * 0.3 + 0.4) + ")"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#ffffff"; ctx.font = "bold 50px Arial"; ctx.textAlign = "center";
         ctx.fillText("⚠️ ¡EL DRAGÓN SUPREMO DESPIERTA EN 5 SEGUNDOS! ⚠️", canvas.width / 2, canvas.height * 0.4);
-        ctx.textAlign = "left";
+        ctx.restore();
     }
 
     // Tienda
     if (showShop) {
+        ctx.save();
         ctx.fillStyle = "rgba(0, 0, 0, 0.85)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#00ffcc"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
         ctx.fillText("TIENDA DE ARMAS (Juego Pausado)", canvas.width / 2, canvas.height * 0.25);
@@ -747,7 +755,7 @@ function draw() {
         ctx.fillText(player.hasRifle ? "[COMPRADO] 2. Rifle Pesado (2 de Daño)" : "[Presiona 2] Comprar Rifle Pesado - Costo: 3000 pts", canvas.width / 2, canvas.height * 0.6);
         
         ctx.fillStyle = "#aaa"; ctx.font = "18px Arial"; ctx.fillText("Presiona 'T' para volver a la batalla", canvas.width / 2, canvas.height * 0.8);
-        ctx.textAlign = "left";
+        ctx.restore();
     }
 }
 
@@ -756,4 +764,5 @@ function loop() {
     draw(); 
     requestAnimationFrame(loop); 
 }
+loop();
 loop();
