@@ -9,9 +9,9 @@ let keys = {};
 const gravity = 0.6;
 const floorY = canvas.height - 40; // El suelo está a 40px del fondo
 
-// 1. Configuración del Jugador (Stickman Celeste)
+// 1. Configuración del Jugador
 const player = {
-    x: 100, // Empieza en la izquierda de la pantalla
+    x: 100,
     y: floorY - 80,
     width: 40,
     height: 80,
@@ -20,11 +20,24 @@ const player = {
     velocityY: 0,
     isGrounded: false,
     color: "#00ffcc",
-    facing: 1 // 1 = Derecha, -1 = Izquierda
+    facing: 1,
+    // NUEVO: Sistema de vidas e invulnerabilidad
+    lives: 3,
+    maxLives: 3,
+    isInvulnerable: false,
+    invulnerableTimer: 0
 };
 
 let bullets = [];
 let enemies = [];
+let medkits = []; // Lista para almacenar el botiquín
+
+// NUEVO: Definición de las 3 plataformas flotantes (x, y, ancho, alto)
+const platforms = [
+    { x: 250, y: 320, width: 180, height: 15 },
+    { x: 550, y: 240, width: 200, height: 15 },
+    { x: 150, y: 160, width: 150, height: 15 }
+];
 
 // Escuchar teclado
 window.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
@@ -32,39 +45,55 @@ window.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
 // Disparar con la tecla X
 window.addEventListener("keydown", e => {
-    if (e.key.toLowerCase() === "x") {
+    if (e.key.toLowerCase() === "x" && player.lives > 0) {
         bullets.push({
             x: player.facing === 1 ? player.x + player.width + 5 : player.x - 15,
-            y: player.y + 35, // Altura de la pistola
+            y: player.y + 35,
             width: 12,
             height: 6,
-            speed: 12 * player.facing, // Dispara hacia donde esté mirando
+            speed: 12 * player.facing,
             color: "#ff0055"
         });
     }
 });
 
-// 2. Generador de enemigos (Stickmen Rojos que avanzan desde la derecha)
+// Generador de enemigos (Stickmen Rojos)
 function spawnEnemy() {
+    if (player.lives <= 0) return;
     enemies.push({
-        x: canvas.width + 20, // Aparecen justo fuera de la pantalla por la derecha
-        y: floorY - 80,       // Apoyados en el mismo suelo que el jugador
+        x: canvas.width + 20,
+        y: floorY - 80, 
         width: 40,
         height: 80,
-        speed: Math.random() * (3 - 1.5) + 1.5, // Velocidades variadas
+        speed: Math.random() * (3 - 1.5) + 1.5,
         color: "#ff3333"
     });
 }
-// Aparece un enemigo cada 1.8 segundos para dar tiempo a reaccionar
 setInterval(spawnEnemy, 1800); 
 
-// 3. Función para dibujar los Stickmen
-function drawStickman(x, y, color, hasGun, facingRight) {
+// NUEVO: Generador de Botiquines (Aparece uno cada 60 segundos)
+function spawnMedkit() {
+    if (player.lives <= 0) return;
+    // Aparece en una posición X aleatoria en el suelo
+    medkits.push({
+        x: Math.random() * (canvas.width - 60) + 30,
+        y: floorY - 25,
+        width: 25,
+        height: 25
+    });
+}
+setInterval(spawnMedkit, 60000); // 60000 milisegundos = 60 segundos
+
+// Función para dibujar los Stickmen
+function drawStickman(x, y, color, hasGun, facingRight, isInvisibleFlashing) {
+    // Si es invulnerable, hacemos que parpadee (no se dibuja en algunos fotogramas)
+    if (isInvisibleFlashing && Math.floor(Date.now() / 100) % 2 === 0) return;
+
     ctx.strokeStyle = color;
     ctx.lineWidth = 3;
     ctx.fillStyle = color;
 
-    const cx = x + 20; // Centro del monito
+    const cx = x + 20;
 
     // Cabeza
     ctx.beginPath();
@@ -77,7 +106,7 @@ function drawStickman(x, y, color, hasGun, facingRight) {
     ctx.lineTo(cx, y + 55);
     ctx.stroke();
 
-    // Piernas (En posición de caminata/guardia)
+    // Piernas
     ctx.beginPath();
     ctx.moveTo(cx, y + 55);
     ctx.lineTo(cx - 10, y + 80);
@@ -92,7 +121,6 @@ function drawStickman(x, y, color, hasGun, facingRight) {
         if (facingRight) {
             ctx.lineTo(cx + 18, y + 35);
             ctx.stroke();
-            // Pistola blanca
             ctx.strokeStyle = "#ffffff";
             ctx.lineWidth = 4;
             ctx.beginPath();
@@ -104,7 +132,6 @@ function drawStickman(x, y, color, hasGun, facingRight) {
         } else {
             ctx.lineTo(cx - 18, y + 35);
             ctx.stroke();
-            // Pistola apuntando a la izquierda
             ctx.strokeStyle = "#ffffff";
             ctx.lineWidth = 4;
             ctx.beginPath();
@@ -115,118 +142,3 @@ function drawStickman(x, y, color, hasGun, facingRight) {
             ctx.stroke();
         }
     } else {
-        // Enemigos avanzan con los brazos hacia adelante (estilo zombie/agresivo)
-        ctx.moveTo(cx, y + 35);
-        ctx.lineTo(cx - 18, y + 40);
-        ctx.moveTo(cx, y + 35);
-        ctx.lineTo(cx - 12, y + 45);
-        ctx.stroke();
-    }
-}
-
-// 4. Detector de Choques
-function checkCollision(rect1, rect2) {
-    return rect1.x < rect2.x + rect2.width &&
-           rect1.x + rect1.width > rect2.x &&
-           rect1.y < rect2.y + rect2.height &&
-           rect1.y + rect1.height > rect2.y;
-}
-
-// 5. Lógica del Juego (Actualización de posiciones)
-function update() {
-    // Controles de movimiento horizontal
-    if (keys["a"] && player.x > 0) {
-        player.x -= player.speed;
-        player.facing = -1;
-    }
-    if (keys["d"] && player.x < canvas.width - player.width) {
-        player.x += player.speed;
-        player.facing = 1;
-    }
-
-    // Mecánica de Salto (W)
-    if (keys["w"] && player.isGrounded) {
-        player.velocityY = -player.jumpForce;
-        player.isGrounded = false;
-    }
-
-    // Físicas del Jugador
-    player.velocityY += gravity;
-    player.y += player.velocityY;
-
-    // Detectar suelo para el jugador
-    if (player.y >= floorY - player.height) {
-        player.y = floorY - player.height;
-        player.velocityY = 0;
-        player.isGrounded = true;
-    }
-
-    // Mover Balas
-    bullets.forEach((bullet, bIndex) => {
-        bullet.x += bullet.speed;
-        if (bullet.x > canvas.width || bullet.x < 0) {
-            bullets.splice(bIndex, 1);
-        }
-    });
-
-    // Mover Enemigos (Avanzan de derecha a izquierda)
-    enemies.forEach((enemy, eIndex) => {
-        enemy.x -= enemy.speed; // Restamos X para que caminen a la izquierda
-
-        // Si un stickman rojo toca al jugador
-        if (checkCollision(player, enemy)) {
-            alert(`¡Game Over! Te alcanzaron. Puntuación final: ${score}`);
-            document.location.reload();
-        }
-
-        // Si logran pasar de largo la pantalla por la izquierda
-        if (enemy.x + enemy.width < 0) {
-            enemies.splice(eIndex, 1);
-        }
-
-        // Impacto de Bala vs Enemigo
-        bullets.forEach((bullet, bIndex) => {
-            if (checkCollision(bullet, enemy)) {
-                enemies.splice(eIndex, 1);
-                bullets.splice(bIndex, 1);
-                score += 10;
-                scoreEl.innerText = score;
-            }
-        });
-    });
-}
-
-// 6. Renderizar todo en el lienzo
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Dibujar el Suelo
-    ctx.fillStyle = "#333333";
-    ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
-    
-    // Línea verde brillante para decorar el suelo (estilo arcade)
-    ctx.fillStyle = "#00ffcc";
-    ctx.fillRect(0, floorY, canvas.width, 4);
-
-    // Dibujar Jugador (Celeste, con arma, mira a donde camina)
-    drawStickman(player.x, player.y, player.color, true, player.facing === 1);
-
-    // Dibujar Enemigos (Rojos, sin arma)
-    enemies.forEach(enemy => {
-        drawStickman(enemy.x, enemy.y, enemy.color, false, false);
-    });
-
-    // Dibujar Balas de la pistola
-    bullets.forEach(bullet => {
-        ctx.fillStyle = bullet.color;
-        ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
-    });
-}
-
-function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
-}
-
-loop();
