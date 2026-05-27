@@ -54,7 +54,7 @@ const permanentUpgrades = {
     bonusMaxAmmo: 0
 };
 
-// ESTRUCTURA COMPLETA DE ARMAS DE LA TIENDA (ACTUALIZADA CON DUALES)
+// ESTRUCTURA COMPLETA DE ARMAS DE LA TIENDA
 const weaponsCatalog = {
     pistola: { name: "Pistola Base", baseAmmo: 9, cooldown: 400, damage: 1, cost: 0, purchased: true, color: "#ffffff" },
     mp5:     { name: "Subfusil MP5", baseAmmo: 20, cooldown: 130, damage: 1, cost: 1000, purchased: false, color: "#ffff00" },
@@ -190,7 +190,7 @@ window.addEventListener("click", e => {
     }
 });
 
-// Lógica Interactiva de la Tienda (Actualizada a 4 opciones de armas)
+// Tienda interactiva
 window.addEventListener("keydown", e => {
     if (gameState !== "playing" || isRoundBreak) return; 
     
@@ -198,12 +198,10 @@ window.addEventListener("keydown", e => {
     if (key === "t") { showShop = !showShop; isPaused = showShop; return; }
     
     if (showShop) {
-        // 1. Pistola Base
         if (key === "1") {
             equipWeapon("pistola");
             showShop = false; isPaused = false;
         }
-        // 2. Subfusil MP5
         if (key === "2") {
             if (weaponsCatalog.mp5.purchased) {
                 equipWeapon("mp5");
@@ -215,7 +213,6 @@ window.addEventListener("keydown", e => {
                 showShop = false; isPaused = false;
             }
         }
-        // 3. Pistolas Duales
         if (key === "3") {
             if (weaponsCatalog.duales.purchased) {
                 equipWeapon("duales");
@@ -227,7 +224,6 @@ window.addEventListener("keydown", e => {
                 showShop = false; isPaused = false;
             }
         }
-        // 4. Rifle Pesado
         if (key === "4") {
             if (weaponsCatalog.rifle.purchased) {
                 equipWeapon("rifle");
@@ -274,7 +270,6 @@ window.addEventListener("keydown", e => {
 
             const weaponData = weaponsCatalog[player.currentWeapon];
 
-            // Si son duales alternamos un poco la altura visual de la bala para simular los dos brazos
             let bulletSpreadY = 0;
             if (player.currentWeapon === "duales") {
                 bulletSpreadY = (player.ammo % 2 === 0) ? -6 : 6;
@@ -335,7 +330,6 @@ setInterval(() => {
     }
 }, 1000);
 
-// Spawners
 function sampleEnemySpawn() {
     let maxForThisRound = getTotalEnemiesForRound(currentRound);
     return (enemiesSpawnedInRound < maxForThisRound && !isRoundBreak);
@@ -494,7 +488,6 @@ function update() {
     enemyBullets.forEach((eb, ebIndex) => {
         eb.x += eb.speedX;
         eb.y += eb.speedY;
-
         if (checkCollision(player, eb)) {
             damagePlayer(eb.damage);
             enemyBullets.splice(ebIndex, 1);
@@ -550,7 +543,6 @@ function update() {
                 }
             } else {
                 if (enemy.y < floorY - enemy.height) enemy.y += 2;
-                
                 let now = Date.now();
                 if (now - enemy.lastShot > 5000) {
                     enemy.lastShot = now;
@@ -615,13 +607,11 @@ function checkCollision(rect1, rect2) {
     return rect1.x < rect2.x + rect2.width && rect1.x + rect1.width > rect2.x && rect1.y < rect2.y + rect2.height && rect1.y + rect1.height > rect2.y;
 }
 
-// LÓGICA DE DIBUJO CON ADAPTACIÓN PARA DOS BRAZOS EN DUALES
 function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 1, isFlying = false) {
     if (isInvulnerable && Math.floor(Date.now() / 100) % 2 === 0) return;
     ctx.strokeStyle = color; ctx.lineWidth = 3 * scale; ctx.fillStyle = color;
     const w = 40 * scale; const h = 80 * scale; const cx = x + w / 2;
     
-    // Cabeza, Cuerpo y Piernas
     ctx.beginPath(); ctx.arc(cx, y + (15 * scale), 10 * scale, 0, Math.PI * 2); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(cx, y + (25 * scale)); ctx.lineTo(cx, y + (55 * scale)); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(cx, y + (55 * scale)); ctx.lineTo(cx - (10 * scale), y + h); ctx.moveTo(cx, y + (55 * scale)); ctx.lineTo(cx + (10 * scale), y + h); ctx.stroke();
@@ -637,27 +627,24 @@ function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 
         let angle = Math.atan2(mouseY - (y + 35), mouseX - cx);
 
         if (player.currentWeapon === "duales") {
-            // BRAZO 1 (Pistola Superior)
             ctx.save();
             ctx.translate(cx, y + 30);
             ctx.rotate(angle);
             ctx.strokeStyle = color; ctx.lineWidth = 3 * scale;
-            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(18, -4); ctx.stroke(); // Brazo
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(18, -4); ctx.stroke(); 
             ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.moveTo(18, -4); ctx.lineTo(28, -4); ctx.stroke(); // Cañón de la pistola
+            ctx.beginPath(); ctx.moveTo(18, -4); ctx.lineTo(28, -4); ctx.stroke(); 
             ctx.restore();
 
-            // BRAZO 2 (Pistola Inferior)
             ctx.save();
             ctx.translate(cx, y + 42);
             ctx.rotate(angle);
             ctx.strokeStyle = color; ctx.lineWidth = 3 * scale;
-            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(18, 4); ctx.stroke();  // Segundo Brazo
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(18, 4); ctx.stroke();  
             ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.moveTo(18, 4); ctx.lineTo(28, 4); ctx.stroke();  // Segundo Cañón
+            ctx.beginPath(); ctx.moveTo(18, 4); ctx.lineTo(28, 4); ctx.stroke();  
             ctx.restore();
         } else {
-            // CUALQUIER OTRA ARMA DE UN SOLO BRAZO
             ctx.save();
             ctx.translate(cx, y + 35);
             ctx.rotate(angle);
@@ -802,7 +789,7 @@ function draw() {
         const startX = (canvas.width / 2) - (totalMenuWidth / 2);
         
         upgradeOptions.forEach((opt, index) => {
-            opt.x = startStartX = startX + (index * buttonSpacing); opt.y = canvas.height * 0.48;
+            opt.x = startX + (index * buttonSpacing); opt.y = canvas.height * 0.48;
             let isHover = mouseX >= opt.x && mouseX <= opt.x + opt.w && mouseY >= opt.y && mouseY <= opt.y + opt.h;
             ctx.fillStyle = isHover ? opt.color : "#222232"; ctx.fillRect(opt.x, opt.y, opt.w, opt.h);
             ctx.strokeStyle = opt.color; ctx.lineWidth = 3; ctx.strokeRect(opt.x, opt.y, opt.w, opt.h);
@@ -829,7 +816,7 @@ function draw() {
     }
 
     // ==========================================
-    // RENDERIZADO DE LA TIENDA DE ARMAS (ACTUALIZADO CON 4 OPCIONES)
+    // RENDERIZADO CORREGIDO DE LA TIENDA DE ARMAS
     // ==========================================
     if (showShop) {
         ctx.fillStyle = "rgba(10, 10, 20, 0.95)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -856,7 +843,7 @@ function draw() {
             ctx.fillText(`[Presiona 2] Comprar Subfusil MP5 - Costo: ${weaponsCatalog.mp5.cost} pts`, canvas.width / 2, canvas.height * 0.48);
         }
 
-        // 3. Pistolas Duales (Nueva Adición)
+        // 3. Pistolas Duales
         if (player.currentWeapon === "duales") {
             ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 3. Pistolas Duales (Doble Brazo)", canvas.width / 2, canvas.height * 0.58);
         } else if (weaponsCatalog.duales.purchased) {
