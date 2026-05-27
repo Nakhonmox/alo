@@ -13,10 +13,8 @@ let mouseY = 0;
 const gravity = 0.6;
 const floorY = canvas.height - 60;
 
-// ==========================================
-// NUEVO: SISTEMA DE ESTADOS DEL JUEGO
-// ==========================================
-let gameState = "menu"; // Estados posibles: "menu", "playing"
+// Sistema de Estados del Juego
+let gameState = "menu"; // "menu", "playing"
 
 // Coordenadas y tamaño del botón Play
 const playButton = {
@@ -25,7 +23,6 @@ const playButton = {
     width: 200,
     height: 60
 };
-// ==========================================
 
 let isPaused = false;
 let showShop = false;
@@ -34,6 +31,44 @@ let showShop = false;
 let gameTimer = 0;
 let dragonSpawned = false;
 let dragonWarning = false;
+
+// ==========================================
+// NUEVO: CONFIGURACIÓN DEL SISTEMA DE RONDAS
+// ==========================================
+const roundSystem = {
+    currentRound: 1,
+    enemiesTotal: 20,       // Ronda 1 empieza con 20
+    enemiesSpawned: 0,      // Cuántos han salido ya a la pantalla
+    enemiesRemaining: 20,   // Cuántos faltan por morir para pasar de ronda
+    isIntermission: false,  // ¿Estamos en los 10 segundos de espera?
+    intermissionTime: 10,   // Cuenta regresiva del descanso
+    intermissionInterval: null
+};
+
+// Modificación para calcular dinámicamente los enemigos por ronda
+function startRound(roundNumber) {
+    roundSystem.currentRound = roundNumber;
+    roundSystem.enemiesTotal = 20 + (roundNumber - 1) * 50; // Ronda 1=20, Ronda 2=70, Ronda 3=120...
+    roundSystem.enemiesSpawned = 0;
+    roundSystem.enemiesRemaining = roundSystem.enemiesTotal;
+    roundSystem.isIntermission = false;
+}
+
+function startIntermission() {
+    roundSystem.isIntermission = true;
+    roundSystem.intermissionTime = 10;
+    
+    roundSystem.intermissionInterval = setInterval(() => {
+        if (gameState !== "playing" || isPaused || player.lives <= 0) return;
+        
+        roundSystem.intermissionTime--;
+        if (roundSystem.intermissionTime <= 0) {
+            clearInterval(roundSystem.intermissionInterval);
+            startRound(roundSystem.currentRound + 1); // Iniciar siguiente ronda
+        }
+    }, 1000);
+}
+// ==========================================
 
 // SISTEMA DE OVERSHIELD (Escudo de Metal tipo Fortnite)
 const shieldSystem = {
@@ -103,24 +138,24 @@ window.addEventListener("mousemove", e => {
     player.facing = (mouseX >= player.x + player.width / 2) ? 1 : -1;
 });
 
-// NUEVO: Escuchar Clics en la pantalla para el botón de Play
+// Escuchar Clics en la pantalla para el botón de Play
 window.addEventListener("click", e => {
     if (gameState === "menu") {
-        // Verificar si el clic está dentro del botón Play
         if (
             mouseX >= playButton.x &&
             mouseX <= playButton.x + playButton.width &&
             mouseY >= playButton.y &&
             mouseY <= playButton.y + playButton.height
         ) {
-            gameState = "playing"; // ¡Empieza la acción!
+            gameState = "playing";
+            startRound(1); // NUEVO: Inicializa la ronda 1 al dar Play
         }
     }
 });
 
 // Escuchar teclado
 window.addEventListener("keydown", e => {
-    if (gameState !== "playing") return; // No registrar teclas si está en el menú
+    if (gameState !== "playing") return; 
     
     const key = e.key.toLowerCase();
     if (key === "t") { showShop = !showShop; isPaused = showShop; return; }
@@ -153,7 +188,7 @@ function equipWeapon(weapon) {
 
 // Disparar con barra espaciadora
 window.addEventListener("keydown", e => {
-    if (gameState !== "playing") return; // No disparar en el menú
+    if (gameState !== "playing") return; 
     
     if (e.key === " " && player.lives > 0 && !isPaused) {
         if (player.isReloading) return;
@@ -197,7 +232,7 @@ function startReload() {
 
 // Reloj interno del juego 
 setInterval(() => {
-    if (gameState !== "playing" || isPaused || player.lives <= 0) return; // MODIFICADO para respetar el menú
+    if (gameState !== "playing" || isPaused || player.lives <= 0 || roundSystem.isIntermission) return; 
     gameTimer++;
 
     if (gameTimer % 180 === 175) {
@@ -218,9 +253,23 @@ setInterval(() => {
     }
 }, 1000);
 
-// Generador de Enemigos Normales
+// MODIFICADO: Helper para controlar el spawn de enemigos respetando el límite por ronda
+function canSpawnEnemy() {
+    return (
+        gameState === "playing" &&
+        player.lives > 0 &&
+        !isPaused &&
+        !dragonSpawned &&
+        !dragonWarning &&
+        !roundSystem.isIntermission &&
+        roundSystem.enemiesSpawned < roundSystem.enemiesTotal
+    );
+}
+
+// Generador de Enemigos Normales (Cada 2.5 segundos para que salgan más fluido debido al volumen por ronda)
 function spawnEnemy() {
-    if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning) return; // MODIFICADO para respetar el menú
+    if (!canSpawnEnemy()) return;
+    roundSystem.enemiesSpawned++;
     enemies.push({
         x: Math.random() > 0.5 ? canvas.width + 20 : -50,
         y: floorY - 80,
@@ -234,11 +283,12 @@ function spawnEnemy() {
         lastGrenade: Date.now() + Math.random() * 2000
     });
 }
-setInterval(spawnEnemy, 7000); 
+setInterval(spawnEnemy, 2500); 
 
 // Generador de Enemigos Voladores
 function spawnFlyingEnemy() {
-    if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning) return; // MODIFICADO para respetar el menú
+    if (!canSpawnEnemy()) return;
+    roundSystem.enemiesSpawned++;
     enemies.push({
         x: Math.random() > 0.5 ? canvas.width + 20 : -50,
         y: Math.random() * (floorY - 250) + 50, 
@@ -250,11 +300,12 @@ function spawnFlyingEnemy() {
         lives: 1 
     });
 }
-setInterval(spawnFlyingEnemy, 5000);
+setInterval(spawnFlyingEnemy, 4000);
 
 // Generador de Jefes Tanque
 function spawnBoss() {
-    if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning) return; // MODIFICADO para respetar el menú
+    if (!canSpawnEnemy()) return;
+    roundSystem.enemiesSpawned++;
     enemies.push({
         x: canvas.width + 100,
         y: floorY - 160,
@@ -268,7 +319,7 @@ function spawnBoss() {
         lastShot: Date.now()
     });
 }
-setInterval(spawnBoss, 30000);
+setInterval(spawnBoss, 20000);
 
 setInterval(() => { 
     if (gameState === "playing" && player.lives > 0 && !isPaused) medkits.push({ x: Math.random() * (canvas.width - 100) + 50, y: floorY - 25, width: 25, height: 25 }); 
@@ -293,13 +344,14 @@ function damagePlayer(amount) {
     player.isInvulnerable = true;
     player.invulnerableTimer = 90; 
     if (player.lives <= 0) {
-        alert(`¡Game Over! Puntuación: ${score}`);
+        if(roundSystem.intermissionInterval) clearInterval(roundSystem.intermissionInterval);
+        alert(`¡Game Over! Llegaste a la Ronda ${roundSystem.currentRound}. Puntuación: ${score}`);
         document.location.reload();
     }
 }
 
 function update() {
-    if (gameState !== "playing" || player.lives <= 0 || isPaused) return; // MODIFICADO: No actualizar físicas en el menú
+    if (gameState !== "playing" || player.lives <= 0 || isPaused) return; 
 
     if (keys["o"] && !player.isInvulnerable && shieldSystem.current < shieldSystem.max) {
         shieldSystem.isCharging = true;
@@ -431,6 +483,14 @@ function update() {
                     enemies.splice(eIndex, 1);
                     score += enemy.isBoss ? 150 : 50; 
                     scoreEl.innerText = score;
+                    
+                    // MODIFICADO: Restar un enemigo restante de la ronda actual
+                    roundSystem.enemiesRemaining--;
+                    
+                    // ¿Se limpió la ronda entera?
+                    if (roundSystem.enemiesRemaining <= 0 && !roundSystem.isIntermission) {
+                        startIntermission();
+                    }
                 }
             }
         });
@@ -501,49 +561,40 @@ function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Fondo Estrellas (se dibuja siempre para dar ambiente)
+    // Fondo Estrellas
     ctx.fillStyle = "#ffffff"; stars.forEach(s => ctx.fillRect(s.x, s.y, s.size, s.size));
 
-    // ==========================================
-    // NUEVO: RENDERIZAR MENÚ DE INICIO
-    // ==========================================
+    // RENDERIZAR MENÚ DE INICIO
     if (gameState === "menu") {
         ctx.fillStyle = "rgba(10, 10, 20, 0.8)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Título del juego
         ctx.fillStyle = "#00ffcc";
         ctx.font = "bold 60px Arial";
         ctx.textAlign = "center";
         ctx.fillText("STICKMAN SURVIVOR", canvas.width / 2, canvas.height * 0.35);
 
-        // Comprobación de colisión del mouse con el botón (Efecto Hover)
         let isHover = mouseX >= playButton.x && mouseX <= playButton.x + playButton.width &&
                       mouseY >= playButton.y && mouseY <= playButton.y + playButton.height;
 
-        // Dibujar Botón
         ctx.fillStyle = isHover ? "#00ffcc" : "#3a3a4a";
         ctx.fillRect(playButton.x, playButton.y, playButton.width, playButton.height);
         
-        // Borde del botón
         ctx.strokeStyle = "#00ffcc";
         ctx.lineWidth = 3;
         ctx.strokeRect(playButton.x, playButton.y, playButton.width, playButton.height);
 
-        // Texto del botón
         ctx.fillStyle = isHover ? "#000000" : "#ffffff";
         ctx.font = "bold 24px Arial";
         ctx.fillText("PLAY", canvas.width / 2, canvas.height / 2 + 38);
 
-        // Subtexto con instrucciones básicas
         ctx.fillStyle = "#888888";
         ctx.font = "16px Arial";
         ctx.fillText("Controles: A/D (Moverse) - W (Saltar) - Espacio (Disparar) - T (Tienda) - O (Escudo)", canvas.width / 2, canvas.height * 0.75);
 
-        ctx.textAlign = "left"; // Restaurar alineación por defecto
-        return; // Detiene el dibujo del juego si estamos en el menú
+        ctx.textAlign = "left"; 
+        return; 
     }
-    // ==========================================
 
     // Montañas de fondo
     ctx.fillStyle = "#111116"; ctx.beginPath(); ctx.moveTo(0, floorY); ctx.lineTo(canvas.width*0.25, floorY-120); ctx.lineTo(canvas.width*0.6, floorY); ctx.lineTo(canvas.width*0.85, floorY-180); ctx.lineTo(canvas.width, floorY); ctx.fill();
@@ -589,7 +640,7 @@ function draw() {
         ctx.beginPath(); ctx.moveTo(canvas.width, dragon.y + 150); ctx.lineTo(dragon.x + 180, dragon.y + 20); ctx.lineTo(dragon.x + 220, dragon.y + 180); ctx.closePath(); ctx.fill();
 
         ctx.fillStyle = "#5c008a"; 
-        ctx.beginPath(); ctx.moveTo(canvas.width, dragon.y + 100); quadraticCurveTo(dragon.x + 120, dragon.y + 150, dragon.x + 100, dragon.y + 250); ctx.lineTo(canvas.width, dragon.y + 380); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(canvas.width, dragon.y + 100); ctx.quadraticCurveTo(dragon.x + 120, dragon.y + 150, dragon.x + 100, dragon.y + 250); ctx.lineTo(canvas.width, dragon.y + 380); ctx.closePath(); ctx.fill();
 
         ctx.strokeStyle = "#7b00b8"; ctx.lineWidth = 3;
         for(let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc(dragon.x + 160 + (i*30), dragon.y + 200 + (i*20), 25, 0, Math.PI); ctx.stroke(); }
@@ -628,6 +679,29 @@ function draw() {
             ctx.beginPath(); ctx.arc(eb.x, eb.y, eb.width/2, 0, Math.PI*2); ctx.fill(); ctx.restore();
         } else { ctx.fillRect(eb.x, eb.y, eb.width, eb.height); }
     });
+
+    // ===================================================
+    // NUEVO: INTERFAZ DE RONDA / CONTADOR (Arriba al centro)
+    // ===================================================
+    ctx.save();
+    ctx.textAlign = "center";
+    if (roundSystem.isIntermission) {
+        // Texto de Descanso
+        ctx.fillStyle = "#ffff00";
+        ctx.font = "bold 26px Arial";
+        ctx.fillText(`¡RONDA COMPLETADA! Próxima ronda en: ${roundSystem.intermissionTime}s`, canvas.width / 2, 40);
+    } else {
+        // Texto de Ronda Activa
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 28px Arial";
+        ctx.fillText(`RONDA ${roundSystem.currentRound}`, canvas.width / 2, 45);
+        
+        ctx.fillStyle = "#ff3333";
+        ctx.font = "18px Arial";
+        ctx.fillText(`Enemigos restantes: ${roundSystem.enemiesRemaining}`, canvas.width / 2, 75);
+    }
+    ctx.restore();
+    // ===================================================
 
     // Interfaz Corazones Rojos
     for (let i = 0; i < player.lives; i++) {
