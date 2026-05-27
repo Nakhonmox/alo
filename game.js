@@ -93,7 +93,7 @@ function equipWeapon(weapon) {
     if (weapon === "mp5") { player.maxAmmo = 20; player.ammo = 20; player.shootCooldown = 130; }
 }
 
-// Disparar
+// Disparar con Espacio
 window.addEventListener("keydown", e => {
     if (e.key === " " && player.lives > 0 && !isPaused) {
         if (player.isReloading) return;
@@ -128,16 +128,16 @@ setInterval(() => {
     // Alerta del Dragón 5 segundos antes del minuto (segundo 55)
     if (gameTimer % 60 === 55) {
         dragonWarning = true;
-        dragonWarningTimer = 300; // 5 segundos en frames aproximados
+        dragonWarningTimer = 300; 
     }
 
     // Aparece el Dragón en el segundo 0/60
     if (gameTimer % 60 === 0 && gameTimer > 0) {
         dragonWarning = false;
-        enemies = []; // Limpiar enemigos comunes de golpe
+        enemies = []; 
         dragonSpawned = true;
         dragon = {
-            x: canvas.width - (canvas.width * 0.25), // Ocupa espacio lateral derecho masivo
+            x: canvas.width - (canvas.width * 0.25), 
             y: floorY - 350,
             width: canvas.width * 0.3,
             height: 350,
@@ -148,7 +148,7 @@ setInterval(() => {
     }
 }, 1000);
 
-// Generador de Enemigos Normales (Cada 1 segundo si no está el dragón)
+// Generador de Enemigos Normales (Cada 3 segundos)
 function spawnEnemy() {
     if (player.lives <= 0 || isPaused || dragonSpawned || dragonWarning) return;
     enemies.push({
@@ -159,12 +159,12 @@ function spawnEnemy() {
         speed: Math.random() * (2.5 - 1.2) + 1.2,
         color: "#ff3333",
         isBoss: false,
-        lives: 2, // Aguantan 2 disparos
+        lives: 2, 
         lastShot: Date.now() + Math.random() * 1000,
         lastGrenade: Date.now() + Math.random() * 2000
     });
 }
-setInterval(spawnEnemy, 1000); // 1 segundo de cooldown
+setInterval(spawnEnemy, 3000); 
 
 // Generador de Jefes Tanque (Cada 30 segundos)
 function spawnBoss() {
@@ -185,12 +185,11 @@ setInterval(spawnBoss, 30000);
 
 setInterval(() => { if (player.lives > 0 && !isPaused) medkits.push({ x: Math.random() * (canvas.width - 100) + 50, y: floorY - 25, width: 25, height: 25 }); }, 60000);
 
-// Función para restar vidas de forma segura y activar invulnerabilidad
 function damagePlayer(amount) {
     if (player.isInvulnerable || player.lives <= 0) return;
     player.lives -= amount;
     player.isInvulnerable = true;
-    player.invulnerableTimer = 90; // 1.5 segundos
+    player.invulnerableTimer = 90; 
     if (player.lives <= 0) {
         alert(`¡Game Over! Puntuación: ${score}`);
         document.location.reload();
@@ -210,7 +209,6 @@ function update() {
         if (player.invulnerableTimer <= 0) player.isInvulnerable = false;
     }
 
-    // Movimiento Jugador
     if (keys["a"] && player.x > 0) { player.x -= player.speed; player.facing = -1; }
     if (keys["d"] && player.x < canvas.width - player.width) { player.x += player.speed; player.facing = 1; }
     if (keys["w"] && player.isGrounded) { player.velocityY = -player.jumpForce; player.isGrounded = false; }
@@ -225,13 +223,11 @@ function update() {
         }
     });
 
-    // Mover Balas del Jugador
     bullets.forEach((bullet, bIndex) => {
         bullet.x += bullet.speed;
         if (bullet.x > canvas.width || bullet.x < 0) bullets.splice(bIndex, 1);
     });
 
-    // Mover Balas Enemigas / Fuego
     enemyBullets.forEach((eb, ebIndex) => {
         eb.x += eb.speedX;
         eb.y += eb.speedY;
@@ -246,20 +242,15 @@ function update() {
         }
     });
 
-    // Actualizar Granadas (Zonas de peligro)
     grenades.forEach((g, gIndex) => {
         g.timer--;
         if (g.timer <= 0) {
-            // EXPLOSIÓN: Verificar si el jugador está dentro de la zona roja
             let distance = Math.sqrt(Math.pow((player.x + player.width/2) - g.x, 2) + Math.pow((player.y + player.height/2) - g.y, 2));
-            if (distance < g.radius) {
-                damagePlayer(1); // Hace 1 de daño
-            }
-            grenades.splice(gIndex, 1); // Desaparece la zona
+            if (distance < g.radius) { damagePlayer(1); }
+            grenades.splice(gIndex, 1); 
         }
     });
 
-    // Lógica de Enemigos Comunes
     enemies.forEach((enemy, eIndex) => {
         if (enemy.x < player.x) { enemy.x += enemy.speed; enemy.facing = 1; } 
         else { enemy.x -= enemy.speed; enemy.facing = -1; }
@@ -274,7 +265,6 @@ function update() {
             });
             if (player.y < enemy.y && enemy.isGrounded && Math.random() < 0.02) { enemy.velocityY = -12; enemy.isGrounded = false; }
 
-            // ATAQUE ENEMIGO PEQUEÑO: Dispara bala cada 2 segundos
             let now = Date.now();
             if (now - enemy.lastShot > 2000) {
                 enemy.lastShot = now;
@@ -285,41 +275,35 @@ function update() {
                 });
             }
 
-            // ATAQUE GRANADA PEQUEÑO: Lanza a la posición del jugador cada 5 segundos
             if (now - enemy.lastGrenade > 5000) {
                 enemy.lastGrenade = now;
                 grenades.push({
                     x: player.x + player.width / 2,
                     y: player.y + player.height / 2,
                     radius: 70,
-                    timer: 120 // 2 segundos en frames (60fps)
+                    timer: 120 
                 });
             }
 
         } else {
-            // BOSS TANQUE
             if (enemy.y < floorY - enemy.height) enemy.y += 2;
             
-            // Disparo a corto alcance cada 5 segundos (Perdigones de 3 ráfagas)
             let now = Date.now();
             if (now - enemy.lastShot > 5000) {
                 enemy.lastShot = now;
                 let distToPlayer = Math.abs(enemy.x - player.x);
-                if (distToPlayer < 350) { // Corto alcance
+                if (distToPlayer < 350) { 
                     enemyBullets.push({
                         x: enemy.x + (enemy.facing === 1 ? enemy.width : 0), y: enemy.y + 60,
                         speedX: enemy.facing * 8, speedY: (Math.random() - 0.5) * 4,
-                        width: 14, height: 14, color: "#ffaa00", damage: 2 // Hace 2 de daño
+                        width: 14, height: 14, color: "#ffaa00", damage: 2 
                     });
                 }
             }
         }
 
-        if (checkCollision(player, enemy)) {
-            damagePlayer(enemy.isBoss ? 2 : 1);
-        }
+        if (checkCollision(player, enemy)) { damagePlayer(enemy.isBoss ? 2 : 1); }
 
-        // Balas del jugador chocan con enemigos
         bullets.forEach((bullet, bIndex) => {
             if (checkCollision(bullet, enemy)) {
                 bullets.splice(bIndex, 1);
@@ -333,28 +317,24 @@ function update() {
         });
     });
 
-    // LÓGICA DEL DRAGÓN FINAL
     if (dragonSpawned && dragon) {
         let now = Date.now();
-        // Escupe bola de fuego cada 3 segundos hacia el jugador
         if (now - dragon.lastShot > 3000) {
             dragon.lastShot = now;
-            // Calcular vector hacia el jugador para apuntar
             let angle = Math.atan2((player.y + 40) - (dragon.y + 100), player.x - (dragon.x + 50));
             enemyBullets.push({
                 x: dragon.x + 50, y: dragon.y + 100,
                 speedX: Math.cos(angle) * 8, speedY: Math.sin(angle) * 8,
-                width: 35, height: 35, color: "#ff4500", damage: 1 // Bola de fuego gigante
+                width: 35, height: 35, color: "#ff4500", damage: 1 
             });
         }
 
-        // Detectar si las balas del jugador le pegan al dragón
         bullets.forEach((bullet, bIndex) => {
             if (checkCollision(bullet, dragon)) {
                 bullets.splice(bIndex, 1);
                 dragon.lives--;
                 if (dragon.lives <= 0) {
-                    score += 1000; // Gran premio
+                    score += 1000; 
                     scoreEl.innerText = score;
                     dragonSpawned = false;
                     dragon = null;
@@ -417,15 +397,13 @@ function draw() {
 
     // Dibujar el DRAGÓN FINAL si está vivo
     if (dragonSpawned && dragon) {
-        // Renderizado geométrico del dragón gigante
-        ctx.fillStyle = "#660099"; // Morado monstruoso
+        ctx.fillStyle = "#660099"; 
         ctx.beginPath();
         ctx.moveTo(canvas.width, dragon.y + 50);
-        ctx.lineTo(dragon.x, dragon.y + 120); // Boca/Cabeza
+        ctx.lineTo(dragon.x, dragon.y + 120); 
         ctx.lineTo(dragon.x + 80, dragon.y + 180);
         ctx.lineTo(canvas.width, dragon.y + 300);
         ctx.closePath(); ctx.fill();
-        // Ojo brillante del dragón
         ctx.fillStyle = "#ffff00"; ctx.beginPath(); ctx.arc(dragon.x + 80, dragon.y + 100, 12, 0, Math.PI*2); ctx.fill();
 
         // Barra de Vida del Dragón
@@ -438,12 +416,12 @@ function draw() {
     bullets.forEach(b => { ctx.fillStyle = b.color; ctx.fillRect(b.x, b.y, b.width, b.height); });
     enemyBullets.forEach(eb => {
         ctx.fillStyle = eb.color;
-        if(eb.width > 15) { // Si es fuego del dragón es redondo
+        if(eb.width > 15) { 
             ctx.beginPath(); ctx.arc(eb.x, eb.y, eb.width/2, 0, Math.PI*2); ctx.fill();
         } else { ctx.fillRect(eb.x, eb.y, eb.width, eb.height); }
     });
 
-    // Interfaz
+    // Interfaz de Vidas
     for (let i = 0; i < player.lives; i++) {
         let hx = canvas.width - 150 + (i * 35); let hy = 35;
         ctx.fillStyle = "#ff2266"; ctx.beginPath(); ctx.arc(hx-7, hy, 7, Math.PI, 0, false); ctx.arc(hx+7, hy, 7, Math.PI, 0, false); ctx.lineTo(hx, hy+12); ctx.closePath(); ctx.fill();
@@ -452,7 +430,7 @@ function draw() {
     ctx.fillText(`Arma: ${player.currentWeapon.toUpperCase()}`, 25, canvas.height - 110);
     ctx.fillText(`Munición: ${player.isReloading ? "RECARGANDO..." : player.ammo + "/" + player.maxAmmo}`, 25, canvas.height - 80);
 
-    // ADVERTENCIA DEL DRAGÓN (Aviso 5 segundos antes)
+    // ADVERTENCIA DEL DRAGÓN
     if (dragonWarning) {
         ctx.fillStyle = "rgba(255, 0, 0, " + (Math.sin(Date.now() / 100) * 0.3 + 0.4) + ")";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
