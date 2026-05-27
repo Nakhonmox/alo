@@ -13,29 +13,29 @@ let mouseY = 0;
 const gravity = 0.6;
 const floorY = canvas.height - 60;
 
-// ESTADOS DEL JUEGO
-let gameState = "MENU"; // "MENU", "PLAYING", "SKILL_SELECT", "SHOP"
+// ==========================================
+// NUEVO: SISTEMA DE ESTADOS DEL JUEGO
+// ==========================================
+let gameState = "menu"; // Estados posibles: "menu", "playing"
+
+// Coordenadas y tamaño del botón Play
+const playButton = {
+    x: canvas.width / 2 - 100,
+    y: canvas.height / 2,
+    width: 200,
+    height: 60
+};
+// ==========================================
+
+let isPaused = false;
 let showShop = false;
 
-// SISTEMA DE RONDAS Y OLEADAS
-let currentRound = 1;
-let totalEnemiesThisRound = 20;
-let enemiesSpawnedThisRound = 0;
-let enemiesDefeatedThisRound = 0;
-let intermissionTimer = 0; 
-let clockInterval = null; // Guardar referencia para no duplicar intervalos
-let sniperSpawnCount = 0; 
-
-// Sistema de Temporizadores de Spawn
-let lastNormalSpawn = 0;
-let lastFlyingSpawn = 0;
-
-// Sistema de Eventos Especiales (Dragón Supremo)
+// Sistema de Oleadas / Jefes Especiales
 let gameTimer = 0;
 let dragonSpawned = false;
 let dragonWarning = false;
 
-// SISTEMA DE OVERSHIELD
+// SISTEMA DE OVERSHIELD (Escudo de Metal tipo Fortnite)
 const shieldSystem = {
     current: 3,
     max: 3,
@@ -44,12 +44,7 @@ const shieldSystem = {
     requiredFrames: 300
 };
 
-// Modificadores permanentes
-const globalUpgrades = {
-    extraAmmo: 0
-};
-
-// Configuración del Jugador
+// 1. Configuración del Jugador
 const player = {
     x: 150,
     y: floorY - 80,
@@ -66,9 +61,9 @@ const player = {
     isInvulnerable: false,
     invulnerableTimer: 0,
     
+    // SISTEMA DE ARMAS
     currentWeapon: "pistola", 
     hasMP5: false,
-    hasDuals: false, 
     hasRifle: false, 
     ammo: 9,
     maxAmmo: 9,
@@ -85,22 +80,14 @@ let enemies = [];
 let medkits = [];
 let dragon = null;     
 
-// Botón del Menú de Inicio
-const playButton = {
-    x: canvas.width / 2 - 100,
-    y: canvas.height / 2,
-    width: 200,
-    height: 60
-};
-
-// Plataformas elevadas
+// 6 plataformas escalonadas de forma accesible
 const platforms = [
     { x: canvas.width * 0.1, y: floorY - 120, width: 200, height: 15 },
     { x: canvas.width * 0.3, y: floorY - 240, width: 200, height: 15 },
     { x: canvas.width * 0.5, y: floorY - 360, width: 200, height: 15 },
     { x: canvas.width * 0.7, y: floorY - 260, width: 200, height: 15 },
     { x: canvas.width * 0.25, y: floorY - 480, width: 250, height: 15 },
-    { x: canvas.width * 0.55, y: floorY - 540, width: 250, height: 15 } 
+    { x: canvas.width * 0.55, y: floorY - 500, width: 250, height: 15 }
 ];
 
 // Fondo (Estrellas)
@@ -113,116 +100,62 @@ for (let i = 0; i < 60; i++) {
 window.addEventListener("mousemove", e => {
     mouseX = e.clientX;
     mouseY = e.clientY;
-    if (gameState === "PLAYING") {
-        player.facing = (mouseX >= player.x + player.width / 2) ? 1 : -1;
-    }
+    player.facing = (mouseX >= player.x + player.width / 2) ? 1 : -1;
 });
 
-// Registrar Click en el botón de Play
+// NUEVO: Escuchar Clics en la pantalla para el botón de Play
 window.addEventListener("click", e => {
-    if (gameState === "MENU") {
-        if (mouseX >= playButton.x && mouseX <= playButton.x + playButton.width &&
-            mouseY >= playButton.y && mouseY <= playButton.y + playButton.height) {
-            startGame();
+    if (gameState === "menu") {
+        // Verificar si el clic está dentro del botón Play
+        if (
+            mouseX >= playButton.x &&
+            mouseX <= playButton.x + playButton.width &&
+            mouseY >= playButton.y &&
+            mouseY <= playButton.y + playButton.height
+        ) {
+            gameState = "playing"; // ¡Empieza la acción!
         }
     }
 });
 
 // Escuchar teclado
 window.addEventListener("keydown", e => {
+    if (gameState !== "playing") return; // No registrar teclas si está en el menú
+    
     const key = e.key.toLowerCase();
+    if (key === "t") { showShop = !showShop; isPaused = showShop; return; }
     
-    if (key === "t" && (gameState === "PLAYING" || gameState === "SHOP")) { 
-        showShop = !showShop; 
-        gameState = showShop ? "SHOP" : "PLAYING";
-        return; 
-    }
-    
-    if (gameState === "SHOP") {
+    if (showShop) {
         if (key === "1" && score >= 1000 && !player.hasMP5) {
             score -= 1000; scoreEl.innerText = score;
             player.hasMP5 = true; equipWeapon("mp5");
-            showShop = false; gameState = "PLAYING";
-        }
-        if (key === "3" && score >= 2000 && !player.hasDuals) {
-            score -= 2000; scoreEl.innerText = score;
-            player.hasDuals = true; equipWeapon("duals");
-            showShop = false; gameState = "PLAYING";
+            showShop = false; isPaused = false;
         }
         if (key === "2" && score >= 3000 && !player.hasRifle) {
             score -= 3000; scoreEl.innerText = score;
             player.hasRifle = true; equipWeapon("rifle");
-            showShop = false; gameState = "PLAYING";
+            showShop = false; isPaused = false;
         }
         return;
     }
-
-    if (gameState === "SKILL_SELECT") {
-        if (key === "j") { 
-            player.maxLives += 1;
-            player.lives = player.maxLives;
-            startIntermission();
-        }
-        if (key === "k") { 
-            shieldSystem.max += 1;
-            shieldSystem.current = shieldSystem.max;
-            startIntermission();
-        }
-        if (key === "l") { 
-            globalUpgrades.extraAmmo += 5;
-            player.maxAmmo += 5;
-            player.ammo = player.maxAmmo;
-            startIntermission();
-        }
-        return;
-    }
-
     keys[e.key === " " ? "space" : key] = true;
 });
 
-window.addEventListener("keyup", e => keys[e.key === " " ? "space" : e.key.toLowerCase()] = false);
-
-function startGame() {
-    gameState = "PLAYING";
-    score = 0;
-    scoreEl.innerText = score;
-    currentRound = 1;
-    totalEnemiesThisRound = 20;
-    enemiesSpawnedThisRound = 0;
-    enemiesDefeatedThisRound = 0;
-    sniperSpawnCount = 0;
-    intermissionTimer = 0;
-    bullets = [];
-    enemyBullets = [];
-    enemies = [];
-    grenades = [];
-    equipWeapon("pistola");
-    initClock();
-}
+window.addEventListener("keyup", e => {
+    if (gameState === "playing") keys[e.key === " " ? "space" : e.key.toLowerCase()] = false;
+});
 
 function equipWeapon(weapon) {
     player.currentWeapon = weapon;
-    if (weapon === "pistola") { player.maxAmmo = 9 + globalUpgrades.extraAmmo; player.shootCooldown = 400; }
-    if (weapon === "mp5") { player.maxAmmo = 20 + globalUpgrades.extraAmmo; player.shootCooldown = 130; }
-    if (weapon === "duals") { player.maxAmmo = 18 + globalUpgrades.extraAmmo; player.shootCooldown = 200; } 
-    if (weapon === "rifle") { player.maxAmmo = 5 + globalUpgrades.extraAmmo; player.shootCooldown = 800; } 
-    player.ammo = player.maxAmmo;
-    player.isReloading = false;
+    if (weapon === "mp5") { player.maxAmmo = 20; player.ammo = 20; player.shootCooldown = 130; }
+    if (weapon === "rifle") { player.maxAmmo = 5; player.ammo = 5; player.shootCooldown = 800; } 
 }
 
-function startIntermission() {
-    gameState = "PLAYING";
-    intermissionTimer = 15;
-    currentRound++;
-    totalEnemiesThisRound = 20 + (currentRound - 1) * 15; // Escalado balanceado por ronda
-    enemiesSpawnedThisRound = 0;
-    enemiesDefeatedThisRound = 0;
-    sniperSpawnCount = 0;
-}
-
-// Disparar
+// Disparar con barra espaciadora
 window.addEventListener("keydown", e => {
-    if (e.key === " " && player.lives > 0 && gameState === "PLAYING" && intermissionTimer <= 0) {
+    if (gameState !== "playing") return; // No disparar en el menú
+    
+    if (e.key === " " && player.lives > 0 && !isPaused) {
         if (player.isReloading) return;
         const now = Date.now();
         if (now - player.lastShotTime < player.shootCooldown) return;
@@ -235,24 +168,20 @@ window.addEventListener("keydown", e => {
             let originY = player.y + 35;
             let angle = Math.atan2(mouseY - originY, mouseX - originX);
 
-            let bulletDamage = (player.currentWeapon === "rifle") ? 2 : 1;
+            let bulletDamage = player.currentWeapon === "rifle" ? 2 : 1;
             let bulletColor = "#ff0055";
             if (player.currentWeapon === "mp5") bulletColor = "#ffff00";
-            if (player.currentWeapon === "duals") bulletColor = "#00ffcc";
             if (player.currentWeapon === "rifle") bulletColor = "#00bfff";
 
-            if (player.currentWeapon === "duals") {
-                let sideOffset = (player.ammo % 2 === 0) ? 6 : -6;
-                originX += Math.cos(angle + Math.PI/2) * sideOffset;
-                originY += Math.sin(angle + Math.PI/2) * sideOffset;
-            }
-
             bullets.push({
-                x: originX, y: originY,
+                x: originX,
+                y: originY,
                 width: player.currentWeapon === "rifle" ? 18 : 10, 
                 height: player.currentWeapon === "rifle" ? 6 : 4,
-                speedX: Math.cos(angle) * 18, speedY: Math.sin(angle) * 18,
-                color: bulletColor, damage: bulletDamage
+                speedX: Math.cos(angle) * 18,
+                speedY: Math.sin(angle) * 18,
+                color: bulletColor,
+                damage: bulletDamage
             });
             if (player.ammo <= 0) startReload();
         }
@@ -262,91 +191,88 @@ window.addEventListener("keydown", e => {
 function startReload() {
     player.isReloading = true;
     if (player.currentWeapon === "mp5") player.reloadTimer = 60;
-    else if (player.currentWeapon === "duals") player.reloadTimer = 70;
     else if (player.currentWeapon === "rifle") player.reloadTimer = 100;
     else player.reloadTimer = 80;
 }
 
-function initClock() {
-    if (clockInterval) clearInterval(clockInterval);
-    clockInterval = setInterval(() => {
-        if (gameState !== "PLAYING" || player.lives <= 0) return;
-
-        if (intermissionTimer > 0) {
-            intermissionTimer--;
-            return;
-        }
-
-        gameTimer++;
-        if (gameTimer % 180 === 175) dragonWarning = true;
-
-        if (gameTimer % 180 === 0 && gameTimer > 0) {
-            dragonWarning = false;
-            dragonSpawned = true;
-            dragon = {
-                x: canvas.width - 320, y: floorY - 380,
-                width: 320, height: 380,
-                lives: 50, maxLives: 50, lastShot: 0
-            };
-        }
-    }, 1000);
-}
-
-function manageRoundsSpawns() {
-    if (gameState !== "PLAYING" || intermissionTimer > 0 || dragonSpawned || dragonWarning) return;
-
-    let now = Date.now();
-
-    // 1. Francotiradores fijos (Exactamente 2 por ronda)
-    if (sniperSpawnCount < 2 && enemiesSpawnedThisRound < totalEnemiesThisRound) {
-        let plat = platforms[platforms.length - 1 - sniperSpawnCount];
-        enemies.push({
-            x: plat.x + plat.width / 2 - 20, y: plat.y - 80,
-            width: 40, height: 80, color: "#ff00ff",
-            isBoss: false, isFlying: false, isSniper: true,
-            lives: 3, maxLives: 3, laserTimer: 0, targetX: 0, targetY: 0
-        });
-        sniperSpawnCount++;
-        enemiesSpawnedThisRound++;
-    }
-
-    // 2. Terrestres Comunes
-    if (now - lastNormalSpawn > 4000 && enemiesSpawnedThisRound < totalEnemiesThisRound) {
-        lastNormalSpawn = now;
-        enemies.push({
-            x: Math.random() > 0.5 ? canvas.width + 20 : -50, y: floorY - 80,
-            width: 40, height: 80, velocityY: 0, isGrounded: true,
-            speed: Math.random() * (2.2 - 1.2) + 1.2, color: "#ff3333",
-            isBoss: false, isFlying: false, isSniper: false,
-            lives: 2, lastGrenade: Date.now() + Math.random() * 2000
-        });
-        enemiesSpawnedThisRound++;
-    }
-
-    // 3. Voladores
-    if (now - lastFlyingSpawn > 5000 && enemiesSpawnedThisRound < totalEnemiesThisRound) {
-        lastFlyingSpawn = now;
-        enemies.push({
-            x: Math.random() > 0.5 ? canvas.width + 20 : -50, y: Math.random() * (floorY - 250) + 50, 
-            width: 40, height: 60, speed: 2.2, color: "#ff8c00",
-            isBoss: false, isFlying: true, isSniper: false, lives: 1 
-        });
-        enemiesSpawnedThisRound++;
-    }
-}
-
-// Jefes Tanque cada 35 segundos
+// Reloj interno del juego 
 setInterval(() => {
-    if (gameState !== "PLAYING" || intermissionTimer > 0 || dragonSpawned) return;
-    enemies.push({
-        x: canvas.width + 100, y: floorY - 160,
-        width: 80, height: 160, velocityY: 0, isGrounded: true, speed: 1.0,
-        color: "#990000", isBoss: true, isFlying: false, isSniper: false,
-        lives: 10, maxLives: 10, lastShot: Date.now()
-    });
-}, 35000);
+    if (gameState !== "playing" || isPaused || player.lives <= 0) return; // MODIFICADO para respetar el menú
+    gameTimer++;
 
-setInterval(() => { if (gameState === "PLAYING" && intermissionTimer <= 0) medkits.push({ x: Math.random() * (canvas.width - 100) + 50, y: floorY - 25, width: 25, height: 25 }); }, 60000);
+    if (gameTimer % 180 === 175) {
+        dragonWarning = true;
+    }
+
+    if (gameTimer % 180 === 0 && gameTimer > 0) {
+        dragonWarning = false;
+        enemies = []; 
+        dragonSpawned = true;
+        dragon = {
+            x: canvas.width - 320, 
+            y: floorY - 380,
+            width: 320, height: 380,
+            lives: 50, maxLives: 50,
+            lastShot: 0
+        };
+    }
+}, 1000);
+
+// Generador de Enemigos Normales
+function spawnEnemy() {
+    if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning) return; // MODIFICADO para respetar el menú
+    enemies.push({
+        x: Math.random() > 0.5 ? canvas.width + 20 : -50,
+        y: floorY - 80,
+        width: 40, height: 80,
+        velocityY: 0, isGrounded: true,
+        speed: Math.random() * (2.5 - 1.2) + 1.2,
+        color: "#ff3333",
+        isBoss: false,
+        isFlying: false,
+        lives: 2, 
+        lastGrenade: Date.now() + Math.random() * 2000
+    });
+}
+setInterval(spawnEnemy, 7000); 
+
+// Generador de Enemigos Voladores
+function spawnFlyingEnemy() {
+    if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning) return; // MODIFICADO para respetar el menú
+    enemies.push({
+        x: Math.random() > 0.5 ? canvas.width + 20 : -50,
+        y: Math.random() * (floorY - 250) + 50, 
+        width: 40, height: 60,
+        speed: 2.2,
+        color: "#ff8c00",
+        isBoss: false,
+        isFlying: true,
+        lives: 1 
+    });
+}
+setInterval(spawnFlyingEnemy, 5000);
+
+// Generador de Jefes Tanque
+function spawnBoss() {
+    if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning) return; // MODIFICADO para respetar el menú
+    enemies.push({
+        x: canvas.width + 100,
+        y: floorY - 160,
+        width: 80, height: 160,
+        velocityY: 0, isGrounded: true,
+        speed: 1.0,
+        color: "#990000",
+        isBoss: true,
+        isFlying: false,
+        lives: 10, maxLives: 10,
+        lastShot: Date.now()
+    });
+}
+setInterval(spawnBoss, 30000);
+
+setInterval(() => { 
+    if (gameState === "playing" && player.lives > 0 && !isPaused) medkits.push({ x: Math.random() * (canvas.width - 100) + 50, y: floorY - 25, width: 25, height: 25 }); 
+}, 60000);
 
 function damagePlayer(amount) {
     if (player.isInvulnerable || player.lives <= 0) return;
@@ -367,20 +293,14 @@ function damagePlayer(amount) {
     player.isInvulnerable = true;
     player.invulnerableTimer = 90; 
     if (player.lives <= 0) {
-        alert(`¡Game Over! Llegaste a la Ronda ${currentRound}.\nPuntuación: ${score}`);
-        gameState = "MENU";
+        alert(`¡Game Over! Puntuación: ${score}`);
+        document.location.reload();
     }
 }
 
 function update() {
-    // Si no se está jugando, omitimos las físicas del mundo, pero permitimos que corra el bucle
-    if (gameState !== "PLAYING") return;
+    if (gameState !== "playing" || player.lives <= 0 || isPaused) return; // MODIFICADO: No actualizar físicas en el menú
 
-    manageRoundsSpawns();
-
-    if (intermissionTimer > 0) return;
-
-    // Carga de escudo
     if (keys["o"] && !player.isInvulnerable && shieldSystem.current < shieldSystem.max) {
         shieldSystem.isCharging = true;
         shieldSystem.chargeProgress++;
@@ -421,16 +341,23 @@ function update() {
     });
 
     bullets.forEach((bullet, bIndex) => {
-        bullet.x += bullet.speedX; bullet.y += bullet.speedY;
+        bullet.x += bullet.speedX;
+        bullet.y += bullet.speedY;
         if (bullet.x > canvas.width || bullet.x < 0 || bullet.y > canvas.height || bullet.y < 0) bullets.splice(bIndex, 1);
     });
 
     enemyBullets.forEach((eb, ebIndex) => {
-        eb.x += eb.speedX; eb.y += eb.speedY;
+        eb.x += eb.speedX;
+        eb.y += eb.speedY;
+
         if (checkCollision(player, eb)) {
-            damagePlayer(eb.damage); enemyBullets.splice(ebIndex, 1); return;
+            damagePlayer(eb.damage);
+            enemyBullets.splice(ebIndex, 1);
+            return;
         }
-        if (eb.x < -50 || eb.x > canvas.width + 50 || eb.y > canvas.height) enemyBullets.splice(ebIndex, 1);
+        if (eb.x < -50 || eb.x > canvas.width + 50 || eb.y > canvas.height) {
+            enemyBullets.splice(ebIndex, 1);
+        }
     });
 
     grenades.forEach((g, gIndex) => {
@@ -443,26 +370,13 @@ function update() {
     });
 
     enemies.forEach((enemy, eIndex) => {
-        if (enemy.isSniper) {
-            enemy.laserTimer++;
-            enemy.targetX = player.x + player.width / 2;
-            enemy.targetY = player.y + player.height / 2;
-
-            if (enemy.laserTimer >= 90) { 
-                enemy.laserTimer = 0;
-                let angle = Math.atan2(enemy.targetY - (enemy.y + 35), enemy.targetX - (enemy.x + 20));
-                enemyBullets.push({
-                    x: enemy.x + 20, y: enemy.y + 35,
-                    speedX: Math.cos(angle) * 23, speedY: Math.sin(angle) * 23,
-                    width: 8, height: 8, color: "#ff00ff", damage: 2 
-                });
-            }
-        } else if (enemy.isFlying) {
+        if (enemy.isFlying) {
             let diffX = (player.x + player.width/2) - (enemy.x + enemy.width/2);
             let diffY = (player.y + player.height/2) - (enemy.y + enemy.height/2);
             let dist = Math.sqrt(diffX*diffX + diffY*diffY);
             if(dist > 0) {
-                enemy.x += (diffX / dist) * enemy.speed; enemy.y += (diffY / dist) * enemy.speed;
+                enemy.x += (diffX / dist) * enemy.speed;
+                enemy.y += (diffY / dist) * enemy.speed;
             }
             enemy.facing = diffX >= 0 ? 1 : -1;
         } else {
@@ -482,15 +396,26 @@ function update() {
                 let now = Date.now();
                 if (now - enemy.lastGrenade > 5000) {
                     enemy.lastGrenade = now;
-                    grenades.push({ x: player.x + player.width / 2, y: player.y + player.height / 2, radius: 70, timer: 120 });
+                    grenades.push({
+                        x: player.x + player.width / 2,
+                        y: player.y + player.height / 2,
+                        radius: 70,
+                        timer: 120 
+                    });
                 }
             } else {
                 if (enemy.y < floorY - enemy.height) enemy.y += 2;
+                
                 let now = Date.now();
                 if (now - enemy.lastShot > 5000) {
                     enemy.lastShot = now;
-                    if (Math.abs(enemy.x - player.x) < 350) { 
-                        enemyBullets.push({ x: enemy.x + (enemy.facing === 1 ? enemy.width : 0), y: enemy.y + 60, speedX: enemy.facing * 8, speedY: (Math.random() - 0.5) * 4, width: 14, height: 14, color: "#ffaa00", damage: 2 });
+                    let distToPlayer = Math.abs(enemy.x - player.x);
+                    if (distToPlayer < 350) { 
+                        enemyBullets.push({
+                            x: enemy.x + (enemy.facing === 1 ? enemy.width : 0), y: enemy.y + 60,
+                            speedX: enemy.facing * 8, speedY: (Math.random() - 0.5) * 4,
+                            width: 14, height: 14, color: "#ffaa00", damage: 2 
+                        });
                     }
                 }
             }
@@ -500,17 +425,12 @@ function update() {
 
         bullets.forEach((bullet, bIndex) => {
             if (checkCollision(bullet, enemy)) {
-                enemy.lives -= bullet.damage; bullets.splice(bIndex, 1);
+                enemy.lives -= bullet.damage; 
+                bullets.splice(bIndex, 1);
                 if (enemy.lives <= 0) {
                     enemies.splice(eIndex, 1);
-                    score += enemy.isBoss ? 150 : 50; scoreEl.innerText = score;
-
-                    if (!enemy.isBoss) {
-                        enemiesDefeatedThisRound++;
-                        if (enemiesDefeatedThisRound >= totalEnemiesThisRound) {
-                            gameState = "SKILL_SELECT"; 
-                        }
-                    }
+                    score += enemy.isBoss ? 150 : 50; 
+                    scoreEl.innerText = score;
                 }
             }
         });
@@ -521,15 +441,22 @@ function update() {
         if (now - dragon.lastShot > 3000) {
             dragon.lastShot = now;
             let angle = Math.atan2((player.y + 40) - (dragon.y + 120), player.x - (dragon.x + 30));
-            enemyBullets.push({ x: dragon.x + 30, y: dragon.y + 120, speedX: Math.cos(angle) * 8, speedY: Math.sin(angle) * 8, width: 35, height: 35, color: "#ff4500", damage: 1 });
+            enemyBullets.push({
+                x: dragon.x + 30, y: dragon.y + 120,
+                speedX: Math.cos(angle) * 8, speedY: Math.sin(angle) * 8,
+                width: 35, height: 35, color: "#ff4500", damage: 1 
+            });
         }
 
         bullets.forEach((bullet, bIndex) => {
             if (checkCollision(bullet, dragon)) {
-                dragon.lives -= bullet.damage; bullets.splice(bIndex, 1);
+                dragon.lives -= bullet.damage;
+                bullets.splice(bIndex, 1);
                 if (dragon.lives <= 0) {
-                    score += 1000; scoreEl.innerText = score;
-                    dragonSpawned = false; dragon = null;
+                    score += 1000; 
+                    scoreEl.innerText = score;
+                    dragonSpawned = false;
+                    dragon = null;
                 }
             }
         });
@@ -542,7 +469,7 @@ function checkCollision(rect1, rect2) {
     return rect1.x < rect2.x + rect2.width && rect1.x + rect1.width > rect2.x && rect1.y < rect2.y + rect2.height && rect1.y + rect1.height > rect2.y;
 }
 
-function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 1, isFlying = false, isSniper = false) {
+function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 1, isFlying = false) {
     if (isInvulnerable && Math.floor(Date.now() / 100) % 2 === 0) return;
     ctx.strokeStyle = color; ctx.lineWidth = 3 * scale; ctx.fillStyle = color;
     const w = 40 * scale; const h = 80 * scale; const cx = x + w / 2;
@@ -558,26 +485,15 @@ function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 
         ctx.beginPath(); ctx.moveTo(cx, y + 35); ctx.lineTo(cx + 35, y + 10 + wingWave); ctx.lineTo(cx + 15, y + 45); ctx.closePath(); ctx.fill();
     }
 
-    if (isSniper) {
-        ctx.fillStyle = "#ff00ff"; ctx.fillRect(cx - 6, y + 10, 12, 4);
-    }
-
     if (hasGun) {
         let angle = Math.atan2(mouseY - (y + 35), mouseX - cx);
-        ctx.save(); ctx.translate(cx, y + 35); ctx.rotate(angle);
-        
-        if (player.currentWeapon === "duals") {
-            ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(22, -6); ctx.stroke();
-            ctx.strokeStyle = "#ffffff"; ctx.beginPath(); ctx.moveTo(22, -6); ctx.lineTo(30, -6); ctx.stroke();
-            ctx.strokeStyle = color; ctx.beginPath(); ctx.moveTo(0, 6); ctx.lineTo(22, 6); ctx.stroke();
-            ctx.strokeStyle = "#ffffff"; ctx.beginPath(); ctx.moveTo(22, 6); ctx.lineTo(30, 6); ctx.stroke();
-        } else {
-            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(20, 0); ctx.stroke();
-            ctx.strokeStyle = "#ffffff"; 
-            ctx.lineWidth = player.currentWeapon === "mp5" ? 5 : (player.currentWeapon === "rifle" ? 6 : 3);
-            ctx.beginPath(); ctx.moveTo(20, 0); ctx.lineTo(player.currentWeapon === "rifle" ? 38 : 30, 0); ctx.stroke();
-        }
+        ctx.save();
+        ctx.translate(cx, y + 35);
+        ctx.rotate(angle);
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(20, 0); ctx.stroke();
+        ctx.strokeStyle = "#ffffff"; 
+        ctx.lineWidth = player.currentWeapon === "mp5" ? 5 : (player.currentWeapon === "rifle" ? 6 : 3);
+        ctx.beginPath(); ctx.moveTo(20, 0); ctx.lineTo(player.currentWeapon === "rifle" ? 38 : 30, 0); ctx.stroke();
         ctx.restore();
     }
 }
@@ -585,49 +501,68 @@ function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // MENU DE INICIO INTERACTIVO (Arreglado: Siempre se renderiza si estamos en este estado)
-    if (gameState === "MENU") {
-        ctx.fillStyle = "#ffffff"; stars.forEach(s => ctx.fillRect(s.x, s.y, s.size, s.size));
-        
-        ctx.fillStyle = "#00ffcc"; ctx.font = "bold 50px Arial"; ctx.textAlign = "center";
-        ctx.fillText("STICKMAN SURVIVOR", canvas.width / 2, canvas.height * 0.35);
-        ctx.fillStyle = "#ffffff"; ctx.font = "20px Arial";
-        ctx.fillText("Rondas Arcades & Perks Roguelike", canvas.width / 2, canvas.height * 0.42);
-        
-        // Botón Play Visuales
-        ctx.fillStyle = "#ff2266"; ctx.fillRect(playButton.x, playButton.y, playButton.width, playButton.height);
-        ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2; ctx.strokeRect(playButton.x, playButton.y, playButton.width, playButton.height);
-        
-        ctx.fillStyle = "#ffffff"; ctx.font = "bold 24px Arial";
-        ctx.fillText("PLAY", canvas.width / 2, canvas.height / 2 + 38);
-        ctx.textAlign = "left";
-        return;
-    }
-
-    // El resto de capas visuales del escenario real de combate
+    // Fondo Estrellas (se dibuja siempre para dar ambiente)
     ctx.fillStyle = "#ffffff"; stars.forEach(s => ctx.fillRect(s.x, s.y, s.size, s.size));
+
+    // ==========================================
+    // NUEVO: RENDERIZAR MENÚ DE INICIO
+    // ==========================================
+    if (gameState === "menu") {
+        ctx.fillStyle = "rgba(10, 10, 20, 0.8)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Título del juego
+        ctx.fillStyle = "#00ffcc";
+        ctx.font = "bold 60px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("STICKMAN SURVIVOR", canvas.width / 2, canvas.height * 0.35);
+
+        // Comprobación de colisión del mouse con el botón (Efecto Hover)
+        let isHover = mouseX >= playButton.x && mouseX <= playButton.x + playButton.width &&
+                      mouseY >= playButton.y && mouseY <= playButton.y + playButton.height;
+
+        // Dibujar Botón
+        ctx.fillStyle = isHover ? "#00ffcc" : "#3a3a4a";
+        ctx.fillRect(playButton.x, playButton.y, playButton.width, playButton.height);
+        
+        // Borde del botón
+        ctx.strokeStyle = "#00ffcc";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(playButton.x, playButton.y, playButton.width, playButton.height);
+
+        // Texto del botón
+        ctx.fillStyle = isHover ? "#000000" : "#ffffff";
+        ctx.font = "bold 24px Arial";
+        ctx.fillText("PLAY", canvas.width / 2, canvas.height / 2 + 38);
+
+        // Subtexto con instrucciones básicas
+        ctx.fillStyle = "#888888";
+        ctx.font = "16px Arial";
+        ctx.fillText("Controles: A/D (Moverse) - W (Saltar) - Espacio (Disparar) - T (Tienda) - O (Escudo)", canvas.width / 2, canvas.height * 0.75);
+
+        ctx.textAlign = "left"; // Restaurar alineación por defecto
+        return; // Detiene el dibujo del juego si estamos en el menú
+    }
+    // ==========================================
+
+    // Montañas de fondo
     ctx.fillStyle = "#111116"; ctx.beginPath(); ctx.moveTo(0, floorY); ctx.lineTo(canvas.width*0.25, floorY-120); ctx.lineTo(canvas.width*0.6, floorY); ctx.lineTo(canvas.width*0.85, floorY-180); ctx.lineTo(canvas.width, floorY); ctx.fill();
+
+    // Escenario
     ctx.fillStyle = "#1e1e24"; ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
     ctx.fillStyle = "#00ffcc"; ctx.fillRect(0, floorY, canvas.width, 4);
     platforms.forEach(plat => { ctx.fillStyle = "#3a3a4a"; ctx.fillRect(plat.x, plat.y, plat.width, plat.height); ctx.fillStyle = "#00ffcc"; ctx.fillRect(plat.x, plat.y, plat.width, 2); });
     medkits.forEach(m => { ctx.fillStyle = "#ffffff"; ctx.fillRect(m.x, m.y, m.width, m.height); ctx.fillStyle = "#ff0000"; ctx.fillRect(m.x + m.width/2 - 2, m.y + 4, 4, m.height - 8); ctx.fillRect(m.x + 4, m.y + m.height/2 - 2, m.width - 8, 4); });
 
+    // Dibujar Zonas Rojas de las Granadas
     grenades.forEach(g => {
-        ctx.fillStyle = "rgba(255, 0, 0, 0.35)"; ctx.beginPath(); ctx.arc(g.x, g.y, g.radius, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "rgba(255, 0, 0, 0.35)";
+        ctx.beginPath(); ctx.arc(g.x, g.y, g.radius, 0, Math.PI*2); ctx.fill();
         ctx.strokeStyle = "#ff0000"; ctx.lineWidth = 2; ctx.stroke();
     });
 
-    // Rayos láser de los Snipers
-    enemies.forEach(enemy => {
-        if (enemy.isSniper) {
-            let alpha = (enemy.laserTimer > 65 && Math.floor(Date.now() / 60) % 2 === 0) ? 0.2 : 0.7;
-            ctx.strokeStyle = `rgba(255, 0, 0, ${alpha})`; ctx.lineWidth = enemy.laserTimer > 65 ? 3 : 1.5;
-            ctx.beginPath(); ctx.moveTo(enemy.x + 20, enemy.y + 35); ctx.lineTo(enemy.targetX, enemy.targetY); ctx.stroke();
-        }
-    });
-
     // Dibujar Jugador
-    drawStickman(player.x, player.y, player.color, true, player.facing === 1, player.isInvulnerable, 1, false, false);
+    drawStickman(player.x, player.y, player.color, true, player.facing === 1, player.isInvulnerable, 1, false);
     
     if (shieldSystem.isCharging) {
         let pct = shieldSystem.chargeProgress / shieldSystem.requiredFrames;
@@ -638,55 +573,85 @@ function draw() {
     // Dibujar Enemigos
     enemies.forEach(enemy => {
         const scale = enemy.isBoss ? 2 : 1;
-        drawStickman(enemy.x, enemy.y, enemy.color, false, enemy.facing === 1, false, scale, enemy.isFlying, enemy.isSniper);
-        if (enemy.isBoss || enemy.isSniper) {
-            ctx.fillStyle = "#333"; ctx.fillRect(enemy.x, enemy.y - 15, enemy.isBoss ? 80 : 40, 6);
-            ctx.fillStyle = enemy.isSniper ? "#ff00ff" : "#ff0000"; 
-            ctx.fillRect(enemy.x, enemy.y - 15, (enemy.lives / enemy.maxLives) * (enemy.isBoss ? 80 : 40), 6);
+        drawStickman(enemy.x, enemy.y, enemy.color, false, enemy.facing === 1, false, scale, enemy.isFlying);
+        if (enemy.isBoss) {
+            ctx.fillStyle = "#333"; ctx.fillRect(enemy.x, enemy.y - 15, 80, 8);
+            ctx.fillStyle = "#ff0000"; ctx.fillRect(enemy.x, enemy.y - 15, (enemy.lives / enemy.maxLives) * 80, 8);
         }
     });
 
+    // Dragón
     if (dragonSpawned && dragon) {
-        ctx.save(); let firePulse = Math.sin(Date.now() / 150) * 20;
-        ctx.fillStyle = "#4a0072"; ctx.beginPath(); ctx.moveTo(canvas.width, dragon.y + 150); ctx.lineTo(dragon.x + 180, dragon.y + 20); ctx.lineTo(dragon.x + 220, dragon.y + 180); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = "#5c008a"; ctx.beginPath(); ctx.moveTo(canvas.width, dragon.y + 100); ctx.quadraticCurveTo(dragon.x + 120, dragon.y + 150, dragon.x + 100, dragon.y + 250); ctx.lineTo(canvas.width, dragon.y + 380); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = "#6a009c"; ctx.beginPath(); ctx.moveTo(dragon.x + 140, dragon.y + 230); ctx.quadraticCurveTo(dragon.x + 60, dragon.y + 150, dragon.x + 40, dragon.y + 100); ctx.lineTo(dragon.x - 20, dragon.y + 80); ctx.lineTo(dragon.x + 30, dragon.y + 130); ctx.lineTo(dragon.x + 100, dragon.y + 160); ctx.quadraticCurveTo(dragon.x + 110, dragon.y + 200, dragon.x + 140, dragon.y + 250); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = "#ffff00"; ctx.shadowColor = "#ffea00"; ctx.shadowBlur = 15; ctx.beginPath(); ctx.arc(dragon.x + 25, dragon.y + 95, 9, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-        ctx.fillStyle = "#222"; ctx.fillRect(canvas.width / 2 - 200, 30, 400, 20); ctx.fillStyle = "#9900ff"; ctx.fillRect(canvas.width / 2 - 200, 30, (dragon.lives / dragon.maxLives) * 400, 20);
+        ctx.save();
+        let firePulse = Math.sin(Date.now() / 150) * 20;
+
+        ctx.fillStyle = "#4a0072"; 
+        ctx.beginPath(); ctx.moveTo(canvas.width, dragon.y + 150); ctx.lineTo(dragon.x + 180, dragon.y + 20); ctx.lineTo(dragon.x + 220, dragon.y + 180); ctx.closePath(); ctx.fill();
+
+        ctx.fillStyle = "#5c008a"; 
+        ctx.beginPath(); ctx.moveTo(canvas.width, dragon.y + 100); quadraticCurveTo(dragon.x + 120, dragon.y + 150, dragon.x + 100, dragon.y + 250); ctx.lineTo(canvas.width, dragon.y + 380); ctx.closePath(); ctx.fill();
+
+        ctx.strokeStyle = "#7b00b8"; ctx.lineWidth = 3;
+        for(let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc(dragon.x + 160 + (i*30), dragon.y + 200 + (i*20), 25, 0, Math.PI); ctx.stroke(); }
+
+        ctx.fillStyle = "#6a009c";
+        ctx.beginPath(); ctx.moveTo(dragon.x + 140, dragon.y + 230); ctx.quadraticCurveTo(dragon.x + 60, dragon.y + 150, dragon.x + 40, dragon.y + 100); ctx.lineTo(dragon.x - 20, dragon.y + 80); ctx.lineTo(dragon.x + 30, dragon.y + 130); ctx.lineTo(dragon.x + 100, dragon.y + 160); ctx.quadraticCurveTo(dragon.x + 110, dragon.y + 200, dragon.x + 140, dragon.y + 250); ctx.closePath(); ctx.fill();
+
+        ctx.fillStyle = "#4a0072"; ctx.beginPath(); ctx.moveTo(dragon.x + 30, dragon.y + 130); ctx.lineTo(dragon.x - 5, dragon.y + 115); ctx.lineTo(dragon.x + 40, dragon.y + 150); ctx.closePath(); ctx.fill();
+
+        ctx.fillStyle = "#9900ff"; ctx.beginPath(); ctx.moveTo(dragon.x + 40, dragon.y + 90); ctx.lineTo(dragon.x + 10, dragon.y + 40); ctx.lineTo(dragon.x + 60, dragon.y + 95); ctx.closePath(); ctx.fill();
+
+        ctx.fillStyle = "#ffff00"; ctx.shadowColor = "#ffea00"; ctx.shadowBlur = 15;
+        ctx.beginPath(); ctx.arc(dragon.x + 25, dragon.y + 95, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#000000"; ctx.beginPath(); ctx.arc(dragon.x + 23, dragon.y + 95, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.restore(); 
+
+        let timeToShot = Date.now() - dragon.lastShot;
+        if (timeToShot > 2000) {
+            ctx.fillStyle = "rgba(255, 69, 0, " + (0.3 + Math.abs(firePulse/40)) + ")";
+            ctx.beginPath(); ctx.arc(dragon.x + 25, dragon.y + 125, 25 + firePulse/2, 0, Math.PI*2); ctx.fill();
+        }
+
+        ctx.fillStyle = "#5c008a"; ctx.beginPath(); ctx.moveTo(dragon.x + 120, dragon.y + 270); ctx.lineTo(dragon.x + 50, dragon.y + 310); ctx.lineTo(dragon.x + 30, dragon.y + 305); ctx.moveTo(dragon.x + 50, dragon.y + 310); ctx.lineTo(dragon.x + 35, dragon.y + 320); ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 4; ctx.stroke();
+
+        ctx.fillStyle = "#222"; ctx.fillRect(canvas.width / 2 - 200, 30, 400, 20);
+        ctx.fillStyle = "#9900ff"; ctx.fillRect(canvas.width / 2 - 200, 30, (dragon.lives / dragon.maxLives) * 400, 20);
+        ctx.fillStyle = "#fff"; ctx.font = "bold 14px Arial"; ctx.fillText("DRAGÓN SUPREMO", canvas.width / 2 - 60, 45);
     }
 
+    // Proyectiles
     bullets.forEach(b => { ctx.fillStyle = b.color; ctx.fillRect(b.x, b.y, b.width, b.height); });
-    enemyBullets.forEach(eb => { ctx.fillStyle = eb.color; ctx.fillRect(eb.x, eb.y, eb.width, eb.height); });
+    enemyBullets.forEach(eb => {
+        ctx.fillStyle = eb.color;
+        if(eb.width > 15) { 
+            ctx.save(); ctx.shadowColor = "#ff4500"; ctx.shadowBlur = 20;
+            ctx.beginPath(); ctx.arc(eb.x, eb.y, eb.width/2, 0, Math.PI*2); ctx.fill(); ctx.restore();
+        } else { ctx.fillRect(eb.x, eb.y, eb.width, eb.height); }
+    });
 
-    // HUD: Vida y Escudo
+    // Interfaz Corazones Rojos
     for (let i = 0; i < player.lives; i++) {
         let hx = canvas.width - 150 + (i * 35); let hy = 35;
         ctx.fillStyle = "#ff2266"; ctx.beginPath(); ctx.arc(hx-7, hy, 7, Math.PI, 0, false); ctx.arc(hx+7, hy, 7, Math.PI, 0, false); ctx.lineTo(hx, hy+12); ctx.closePath(); ctx.fill();
     }
+
+    // Interfaz Overshield Azul
     for (let i = 0; i < shieldSystem.current; i++) {
         let sx = canvas.width - 150 + (i * 35); let sy = 65; 
         ctx.fillStyle = "#00bfff"; ctx.beginPath(); ctx.arc(sx-7, sy, 7, Math.PI, 0, false); ctx.arc(sx+7, sy, 7, Math.PI, 0, false); ctx.lineTo(sx, sy+12); ctx.closePath(); ctx.fill();
     }
 
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.4)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(mouseX, mouseY, 6, 0, Math.PI*2); ctx.stroke();
-
-    // HUD Ronda e Info de armas
-    ctx.fillStyle = "#ffffff"; ctx.font = "bold 26px Arial"; ctx.fillText(`RONDA ${currentRound}`, 25, 45);
-    let enemiesLeft = totalEnemiesThisRound - enemiesDefeatedThisRound;
-    ctx.fillStyle = "#ff3333"; ctx.font = "18px Arial"; ctx.fillText(`Enemigos restantes: ${Math.max(0, enemiesLeft)}`, 25, 75);
+    // Retículo visual del mouse
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.4)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(mouseX, mouseY, 6, 0, Math.PI*2); ctx.stroke();
 
     ctx.fillStyle = "#ffffff"; ctx.font = "20px Arial";
     ctx.fillText(`Arma: ${player.currentWeapon.toUpperCase()}`, 25, canvas.height - 110);
     ctx.fillText(`Munición: ${player.isReloading ? "RECARGANDO..." : player.ammo + "/" + player.maxAmmo}`, 25, canvas.height - 80);
+    ctx.font = "14px Arial"; ctx.fillStyle = "#aaa";
+    ctx.fillText("Mantén 'O' quieto por 5s para recargar Overshield", 25, canvas.height - 50);
 
-    if (intermissionTimer > 0) {
-        ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "#00ffcc"; ctx.font = "bold 38px Arial"; ctx.textAlign = "center";
-        ctx.fillText(`¡PREPÁRATE PARA LA RONDA ${currentRound + 1}!`, canvas.width / 2, canvas.height * 0.4);
-        ctx.fillStyle = "#ffffff"; ctx.font = "24px Arial"; ctx.fillText(`La batalla continúa en: ${intermissionTimer} segundos`, canvas.width / 2, canvas.height * 0.48);
-        ctx.textAlign = "left";
-    }
-
+    // Advertencia Dragón
     if (dragonWarning) {
         ctx.fillStyle = "rgba(255, 0, 0, " + (Math.sin(Date.now() / 100) * 0.3 + 0.4) + ")"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#ffffff"; ctx.font = "bold 50px Arial"; ctx.textAlign = "center";
@@ -694,49 +659,18 @@ function draw() {
         ctx.textAlign = "left";
     }
 
-    // Selector Roguelike de Habilidades
-    if (gameState === "SKILL_SELECT") {
-        ctx.fillStyle = "rgba(10, 10, 18, 0.95)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "#00ffcc"; ctx.font = "bold 42px Arial"; ctx.textAlign = "center";
-        ctx.fillText("¡RONDA COMPLETADA! SELECCIONA UNA HABILIDAD", canvas.width / 2, canvas.height * 0.22);
-        
-        let cardW = 260, cardH = 320, startX = canvas.width / 2 - 430; let cardY = canvas.height * 0.35;
-
-        // Card J
-        ctx.fillStyle = "#1c1c24"; ctx.fillRect(startX, cardY, cardW, cardH); ctx.strokeStyle = "#ff2266"; ctx.strokeRect(startX, cardY, cardW, cardH);
-        ctx.fillStyle = "#ffffff"; ctx.font = "bold 20px Arial"; ctx.fillText("[ J ]", startX + 130, cardY + 50);
-        ctx.fillStyle = "#ff2266"; ctx.font = "16px Arial"; ctx.fillText("VITALIDAD", startX + 130, cardY + 130);
-        ctx.fillStyle = "#aaa"; ctx.font = "14px Arial"; ctx.fillText("+1 Corazón Máximo", startX + 130, cardY + 200); ctx.fillText("Sana vida por completo", startX + 130, cardY + 230);
-
-        // Card K
-        ctx.fillStyle = "#1c1c24"; ctx.fillRect(startX + 300, cardY, cardW, cardH); ctx.strokeStyle = "#00bfff"; ctx.strokeRect(startX + 300, cardY, cardW, cardH);
-        ctx.fillStyle = "#ffffff"; ctx.font = "bold 20px Arial"; ctx.fillText("[ K ]", startX + 430, cardY + 50);
-        ctx.fillStyle = "#00bfff"; ctx.font = "16px Arial"; ctx.fillText("ESCUDO PESADO", startX + 430, cardY + 130);
-        ctx.fillStyle = "#aaa"; ctx.font = "14px Arial"; ctx.fillText("+1 Ranura Permanente", startX + 430, cardY + 200); ctx.fillText("de Overshield Azul", startX + 430, cardY + 230);
-
-        // Card L
-        ctx.fillStyle = "#1c1c24"; ctx.fillRect(startX + 600, cardY, cardW, cardH); ctx.strokeStyle = "#ffff00"; ctx.strokeRect(startX + 600, cardY, cardW, cardH);
-        ctx.fillStyle = "#ffffff"; ctx.font = "bold 20px Arial"; ctx.fillText("[ L ]", startX + 730, cardY + 50);
-        ctx.fillStyle = "#ffff00"; ctx.font = "16px Arial"; ctx.fillText("CARGADOR AMPLIO", startX + 730, cardY + 130);
-        ctx.fillStyle = "#aaa"; ctx.font = "14px Arial"; ctx.fillText("+5 Balas Extra", startX + 730, cardY + 200); ctx.fillText("A todas tus armas", startX + 730, cardY + 230);
-        ctx.textAlign = "left";
-    }
-
     // Tienda
-    if (gameState === "SHOP") {
+    if (showShop) {
         ctx.fillStyle = "rgba(0, 0, 0, 0.85)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#00ffcc"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
         ctx.fillText("TIENDA DE ARMAS (Juego Pausado)", canvas.width / 2, canvas.height * 0.25);
         ctx.fillStyle = "#ffffff"; ctx.font = "24px Arial"; ctx.fillText(`Tu Puntuación: ${score} pts`, canvas.width / 2, canvas.height * 0.35);
         
         ctx.fillStyle = player.hasMP5 ? "#555" : (score >= 1000 ? "#00ffcc" : "#ff3333");
-        ctx.fillText(player.hasMP5 ? "[COMPRADO] 1. Subfusil MP5 (Rápido)" : "[Presiona 1] Comprar MP5 - Costo: 1000 pts", canvas.width / 2, canvas.height * 0.45);
+        ctx.fillText(player.hasMP5 ? "[COMPRADO] 1. Subfusil MP5 (Rápido)" : "[Presiona 1] Comprar MP5 - Costo: 1000 pts", canvas.width / 2, canvas.height * 0.5);
         
-        ctx.fillStyle = player.hasDuals ? "#555" : (score >= 2000 ? "#00ffcc" : "#ff3333");
-        ctx.fillText(player.hasDuals ? "[COMPRADO] 3. Pistolas Duales" : "[Presiona 3] Comprar Pistolas Duales - Costo: 2000 pts", canvas.width / 2, canvas.height * 0.55);
-
         ctx.fillStyle = player.hasRifle ? "#555" : (score >= 3000 ? "#00bfff" : "#ff3333");
-        ctx.fillText(player.hasRifle ? "[COMPRADO] 2. Rifle Pesado (2 de Daño)" : "[Presiona 2] Comprar Rifle Pesado - Costo: 3000 pts", canvas.width / 2, canvas.height * 0.65);
+        ctx.fillText(player.hasRifle ? "[COMPRADO] 2. Rifle Pesado (2 de Daño)" : "[Presiona 2] Comprar Rifle Pesado - Costo: 3000 pts", canvas.width / 2, canvas.height * 0.6);
         
         ctx.fillStyle = "#aaa"; ctx.font = "18px Arial"; ctx.fillText("Presiona 'T' para volver a la batalla", canvas.width / 2, canvas.height * 0.8);
         ctx.textAlign = "left";
@@ -748,6 +682,4 @@ function loop() {
     draw(); 
     requestAnimationFrame(loop); 
 }
-
-// Iniciar el bucle de renderizado global
 loop();
