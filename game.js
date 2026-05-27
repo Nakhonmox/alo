@@ -137,10 +137,10 @@ setInterval(() => {
         enemies = []; 
         dragonSpawned = true;
         dragon = {
-            x: canvas.width - (canvas.width * 0.25), 
-            y: floorY - 350,
-            width: canvas.width * 0.3,
-            height: 350,
+            x: canvas.width - 320, // Ajustado para que se vea perfectamente su enorme silueta
+            y: floorY - 380,
+            width: 320,
+            height: 380,
             lives: 50,
             maxLives: 50,
             lastShot: 0
@@ -265,7 +265,6 @@ function update() {
             if (player.y < enemy.y && enemy.isGrounded && Math.random() < 0.02) { enemy.velocityY = -12; enemy.isGrounded = false; }
 
             let now = Date.now();
-            // SE QUITÓ EL DISPARO DE BALAS. Solo tiran granadas teledirigidas cada 5 segundos
             if (now - enemy.lastGrenade > 5000) {
                 enemy.lastGrenade = now;
                 grenades.push({
@@ -301,7 +300,8 @@ function update() {
                 enemy.lives--;
                 if (enemy.lives <= 0) {
                     enemies.splice(eIndex, 1);
-                    score += enemy.isBoss ? 150 : 15;
+                    // NUEVO: Ajuste de puntuación solicitado
+                    score += enemy.isBoss ? 150 : 50; 
                     scoreEl.innerText = score;
                 }
             }
@@ -312,9 +312,9 @@ function update() {
         let now = Date.now();
         if (now - dragon.lastShot > 3000) {
             dragon.lastShot = now;
-            let angle = Math.atan2((player.y + 40) - (dragon.y + 100), player.x - (dragon.x + 50));
+            let angle = Math.atan2((player.y + 40) - (dragon.y + 120), player.x - (dragon.x + 30));
             enemyBullets.push({
-                x: dragon.x + 50, y: dragon.y + 100,
+                x: dragon.x + 30, y: dragon.y + 120,
                 speedX: Math.cos(angle) * 8, speedY: Math.sin(angle) * 8,
                 width: 35, height: 35, color: "#ff4500", damage: 1 
             });
@@ -386,18 +386,86 @@ function draw() {
         }
     });
 
-    // Dibujar el DRAGÓN FINAL si está vivo
+    // DISEÑO MEJORADO DEL DRAGÓN FINAL
     if (dragonSpawned && dragon) {
-        ctx.fillStyle = "#660099"; 
-        ctx.beginPath();
-        ctx.moveTo(canvas.width, dragon.y + 50);
-        ctx.lineTo(dragon.x, dragon.y + 120); 
-        ctx.lineTo(dragon.x + 80, dragon.y + 180);
-        ctx.lineTo(canvas.width, dragon.y + 300);
-        ctx.closePath(); ctx.fill();
-        ctx.fillStyle = "#ffff00"; ctx.beginPath(); ctx.arc(dragon.x + 80, dragon.y + 100, 12, 0, Math.PI*2); ctx.fill();
+        ctx.save();
+        
+        // Efecto de brillo de fuego interno en la boca/cuerpo
+        let firePulse = Math.sin(Date.now() / 150) * 20;
 
-        // Barra de Vida del Dragón
+        // 1. Ala Trasera Gigante
+        ctx.fillStyle = "#4a0072"; 
+        ctx.beginPath();
+        ctx.moveTo(canvas.width, dragon.y + 150);
+        ctx.lineTo(dragon.x + 180, dragon.y + 20);
+        ctx.lineTo(dragon.x + 220, dragon.y + 180);
+        ctx.closePath(); ctx.fill();
+
+        // 2. Cuerpo Central Escamado
+        ctx.fillStyle = "#5c008a"; 
+        ctx.beginPath();
+        ctx.moveTo(canvas.width, dragon.y + 100);
+        ctx.quadraticCurveTo(dragon.x + 120, dragon.y + 150, dragon.x + 100, dragon.y + 250); // Lomo curvilíneo
+        ctx.lineTo(canvas.width, dragon.y + 380);
+        ctx.closePath(); ctx.fill();
+
+        // Escamas de detalle
+        ctx.strokeStyle = "#7b00b8"; ctx.lineWidth = 3;
+        for(let i = 0; i < 4; i++) {
+            ctx.beginPath(); ctx.arc(dragon.x + 160 + (i*30), dragon.y + 200 + (i*20), 25, 0, Math.PI); ctx.stroke();
+        }
+
+        // 3. Cuello Largo y Cabeza Estilizada
+        ctx.fillStyle = "#6a009c";
+        ctx.beginPath();
+        ctx.moveTo(dragon.x + 140, dragon.y + 230); // Base cuello
+        ctx.quadraticCurveTo(dragon.x + 60, dragon.y + 150, dragon.x + 40, dragon.y + 100); // Curva cuello arriba
+        ctx.lineTo(dragon.x - 20, dragon.y + 80);   // Punta del hocico superior
+        ctx.lineTo(dragon.x + 30, dragon.y + 130);  // Mandíbula abierta interna
+        ctx.lineTo(dragon.x + 100, dragon.y + 160); // Mandíbula inferior
+        ctx.quadraticCurveTo(dragon.x + 110, dragon.y + 200, dragon.x + 140, dragon.y + 250);
+        ctx.closePath(); ctx.fill();
+
+        // 4. Mandíbula Inferior (Efecto de boca abierta rugiendo)
+        ctx.fillStyle = "#4a0072";
+        ctx.beginPath();
+        ctx.moveTo(dragon.x + 30, dragon.y + 130);
+        ctx.lineTo(dragon.x - 5, dragon.y + 115);
+        ctx.lineTo(dragon.x + 40, dragon.y + 150);
+        ctx.closePath(); ctx.fill();
+
+        // 5. Cuernos y Crestas
+        ctx.fillStyle = "#9900ff";
+        ctx.beginPath();
+        ctx.moveTo(dragon.x + 40, dragon.y + 90);
+        ctx.lineTo(dragon.x + 10, dragon.y + 40); // Cuerno principal hacia atrás
+        ctx.lineTo(dragon.x + 60, dragon.y + 95);
+        ctx.closePath(); ctx.fill();
+
+        // 6. Ojo Brillante de Reptil
+        ctx.fillStyle = "#ffff00"; ctx.shadowColor = "#ffea00"; ctx.shadowBlur = 15;
+        ctx.beginPath(); ctx.arc(dragon.x + 25, dragon.y + 95, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#000000"; ctx.beginPath(); ctx.arc(dragon.x + 23, dragon.y + 95, 3, 0, Math.PI * 2); ctx.fill(); // Pupila rasgada
+        ctx.restore(); // Limpiar sombras para el resto del juego
+
+        // 7. Brillo de Fuego en la garganta antes de disparar
+        let timeToShot = Date.now() - dragon.lastShot;
+        if (timeToShot > 2000) {
+            ctx.fillStyle = "rgba(255, 69, 0, " + (0.3 + Math.abs(firePulse/40)) + ")";
+            ctx.beginPath(); ctx.arc(dragon.x + 25, dragon.y + 125, 25 + firePulse/2, 0, Math.PI*2); ctx.fill();
+        }
+
+        // 8. Garra Delantera Amenazante
+        ctx.fillStyle = "#5c008a";
+        ctx.beginPath();
+        ctx.moveTo(dragon.x + 120, dragon.y + 270);
+        ctx.lineTo(dragon.x + 50, dragon.y + 310); // Brazo extendido
+        ctx.lineTo(dragon.x + 30, dragon.y + 305); // Garra 1
+        ctx.moveTo(dragon.x + 50, dragon.y + 310);
+        ctx.lineTo(dragon.x + 35, dragon.y + 320); // Garra 2
+        ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 4; ctx.stroke();
+
+        // Barra de Vida del Dragón UI
         ctx.fillStyle = "#222"; ctx.fillRect(canvas.width / 2 - 200, 30, 400, 20);
         ctx.fillStyle = "#9900ff"; ctx.fillRect(canvas.width / 2 - 200, 30, (dragon.lives / dragon.maxLives) * 400, 20);
         ctx.fillStyle = "#fff"; ctx.font = "bold 14px Arial"; ctx.fillText("DRAGÓN SUPREMO", canvas.width / 2 - 60, 45);
@@ -408,7 +476,10 @@ function draw() {
     enemyBullets.forEach(eb => {
         ctx.fillStyle = eb.color;
         if(eb.width > 15) { 
+            ctx.save();
+            ctx.shadowColor = "#ff4500"; ctx.shadowBlur = 20;
             ctx.beginPath(); ctx.arc(eb.x, eb.y, eb.width/2, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
         } else { ctx.fillRect(eb.x, eb.y, eb.width, eb.height); }
     });
 
