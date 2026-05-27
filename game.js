@@ -50,7 +50,7 @@ const player = {
 };
 
 let bullets = [];
-let enemyBullets = []; // Balas de los enemigos
+let enemyBullets = []; // Balas de los enemigos (Jefes)
 let grenades = [];     // Zonas de granadas activas
 let enemies = [];
 let medkits = [];
@@ -160,7 +160,6 @@ function spawnEnemy() {
         color: "#ff3333",
         isBoss: false,
         lives: 2, 
-        lastShot: Date.now() + Math.random() * 1000,
         lastGrenade: Date.now() + Math.random() * 2000
     });
 }
@@ -266,15 +265,7 @@ function update() {
             if (player.y < enemy.y && enemy.isGrounded && Math.random() < 0.02) { enemy.velocityY = -12; enemy.isGrounded = false; }
 
             let now = Date.now();
-            if (now - enemy.lastShot > 2000) {
-                enemy.lastShot = now;
-                enemyBullets.push({
-                    x: enemy.x + enemy.width/2, y: enemy.y + 30,
-                    speedX: enemy.facing * 6, speedY: 0,
-                    width: 8, height: 4, color: "#ff6666", damage: 1
-                });
-            }
-
+            // SE QUITÓ EL DISPARO DE BALAS. Solo tiran granadas teledirigidas cada 5 segundos
             if (now - enemy.lastGrenade > 5000) {
                 enemy.lastGrenade = now;
                 grenades.push({
