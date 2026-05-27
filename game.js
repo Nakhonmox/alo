@@ -51,7 +51,7 @@ const player = {
     // SISTEMA DE ARMAS
     currentWeapon: "pistola", 
     hasMP5: false,
-    hasRifle: false, // NUEVO: Rifle de 3000 pts
+    hasRifle: false, 
     ammo: 9,
     maxAmmo: 9,
     isReloading: false,
@@ -87,7 +87,6 @@ for (let i = 0; i < 60; i++) {
 window.addEventListener("mousemove", e => {
     mouseX = e.clientX;
     mouseY = e.clientY;
-    // Orientar visualmente al stickman según la posición del mouse
     player.facing = (mouseX >= player.x + player.width / 2) ? 1 : -1;
 });
 
@@ -96,7 +95,6 @@ window.addEventListener("keydown", e => {
     const key = e.key.toLowerCase();
     if (key === "t") { showShop = !showShop; isPaused = showShop; return; }
     
-    // Compras en la tienda
     if (showShop) {
         if (key === "1" && score >= 1000 && !player.hasMP5) {
             score -= 1000; scoreEl.innerText = score;
@@ -117,10 +115,10 @@ window.addEventListener("keyup", e => keys[e.key === " " ? "space" : e.key.toLow
 function equipWeapon(weapon) {
     player.currentWeapon = weapon;
     if (weapon === "mp5") { player.maxAmmo = 20; player.ammo = 20; player.shootCooldown = 130; }
-    if (weapon === "rifle") { player.maxAmmo = 5; player.ammo = 5; player.shootCooldown = 800; } // Rifle lento pero letal
+    if (weapon === "rifle") { player.maxAmmo = 5; player.ammo = 5; player.shootCooldown = 800; } 
 }
 
-// Disparar hacia el mouse con la barra espaciadora
+// Disparar con barra espaciadora
 window.addEventListener("keydown", e => {
     if (e.key === " " && player.lives > 0 && !isPaused) {
         if (player.isReloading) return;
@@ -131,7 +129,6 @@ window.addEventListener("keydown", e => {
             player.ammo--;
             player.lastShotTime = now;
 
-            // Calcular ángulo hacia el mouse
             let originX = player.x + player.width / 2;
             let originY = player.y + 35;
             let angle = Math.atan2(mouseY - originY, mouseX - originX);
@@ -168,12 +165,10 @@ setInterval(() => {
     if (isPaused || player.lives <= 0) return;
     gameTimer++;
 
-    // Alerta del Dragón 5 segundos antes de los 3 minutos (segundo 175)
     if (gameTimer % 180 === 175) {
         dragonWarning = true;
     }
 
-    // El dragón aparece exactamente cada 3 minutos (180 segundos)
     if (gameTimer % 180 === 0 && gameTimer > 0) {
         dragonWarning = false;
         enemies = []; 
@@ -188,7 +183,7 @@ setInterval(() => {
     }
 }, 1000);
 
-// Generador de Enemigos Normales (Cada 3 segundos)
+// MODIFICADO: Generador de Enemigos Normales (Cambiado a cada 7 segundos / 7000ms)
 function spawnEnemy() {
     if (player.lives <= 0 || isPaused || dragonSpawned || dragonWarning) return;
     enemies.push({
@@ -204,20 +199,20 @@ function spawnEnemy() {
         lastGrenade: Date.now() + Math.random() * 2000
     });
 }
-setInterval(spawnEnemy, 3000); 
+setInterval(spawnEnemy, 7000); 
 
-// NUEVO: Generador de Enemigos Voladores (Cada 5 segundos)
+// Generador de Enemigos Voladores (Cada 5 segundos)
 function spawnFlyingEnemy() {
     if (player.lives <= 0 || isPaused || dragonSpawned || dragonWarning) return;
     enemies.push({
         x: Math.random() > 0.5 ? canvas.width + 20 : -50,
-        y: Math.random() * (floorY - 250) + 50, // Aparecen en el aire
+        y: Math.random() * (floorY - 250) + 50, 
         width: 40, height: 60,
         speed: 2.2,
         color: "#ff8c00",
         isBoss: false,
         isFlying: true,
-        lives: 1 // 1 punto de vida
+        lives: 1 
     });
 }
 setInterval(spawnFlyingEnemy, 5000);
@@ -245,15 +240,13 @@ setInterval(() => { if (player.lives > 0 && !isPaused) medkits.push({ x: Math.ra
 function damagePlayer(amount) {
     if (player.isInvulnerable || player.lives <= 0) return;
     
-    // Interrupción del escudo si te pegan
     shieldSystem.isCharging = false;
     shieldSystem.chargeProgress = 0;
 
-    // Lógica de mitigación del Overshield
     if (shieldSystem.current > 0) {
         shieldSystem.current -= amount;
         if (shieldSystem.current < 0) {
-            player.lives += shieldSystem.current; // Restar el daño sobrante a las vidas reales
+            player.lives += shieldSystem.current; 
             shieldSystem.current = 0;
         }
     } else {
@@ -271,7 +264,6 @@ function damagePlayer(amount) {
 function update() {
     if (player.lives <= 0 || isPaused) return;
 
-    // Recarga manual del Overshield manteniendo presionada la tecla 'O'
     if (keys["o"] && !player.isInvulnerable && shieldSystem.current < shieldSystem.max) {
         shieldSystem.isCharging = true;
         shieldSystem.chargeProgress++;
@@ -295,7 +287,6 @@ function update() {
         if (player.invulnerableTimer <= 0) player.isInvulnerable = false;
     }
 
-    // Solo se permite mover si NO se está canalizando activamente el escudo
     if (!shieldSystem.isCharging) {
         if (keys["a"] && player.x > 0) { player.x -= player.speed; }
         if (keys["d"] && player.x < canvas.width - player.width) { player.x += player.speed; }
@@ -312,7 +303,6 @@ function update() {
         }
     });
 
-    // Movimiento de proyectiles multidireccionales
     bullets.forEach((bullet, bIndex) => {
         bullet.x += bullet.speedX;
         bullet.y += bullet.speedY;
@@ -343,9 +333,7 @@ function update() {
     });
 
     enemies.forEach((enemy, eIndex) => {
-        // COMPORTAMIENTO ENEMIGO VOLADOR VS TERRESTRE
         if (enemy.isFlying) {
-            // Persecución directa en 2D (Eje X e Y) hacia el jugador
             let diffX = (player.x + player.width/2) - (enemy.x + enemy.width/2);
             let diffY = (player.y + player.height/2) - (enemy.y + enemy.height/2);
             let dist = Math.sqrt(diffX*diffX + diffY*diffY);
@@ -355,7 +343,6 @@ function update() {
             }
             enemy.facing = diffX >= 0 ? 1 : -1;
         } else {
-            // Enemigos en tierra tradicionales
             if (enemy.x < player.x) { enemy.x += enemy.speed; enemy.facing = 1; } 
             else { enemy.x -= enemy.speed; enemy.facing = -1; }
 
@@ -401,7 +388,7 @@ function update() {
 
         bullets.forEach((bullet, bIndex) => {
             if (checkCollision(bullet, enemy)) {
-                enemy.lives -= bullet.damage; // Aplica el daño dinámico de las armas
+                enemy.lives -= bullet.damage; 
                 bullets.splice(bIndex, 1);
                 if (enemy.lives <= 0) {
                     enemies.splice(eIndex, 1);
@@ -450,29 +437,18 @@ function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 
     ctx.strokeStyle = color; ctx.lineWidth = 3 * scale; ctx.fillStyle = color;
     const w = 40 * scale; const h = 80 * scale; const cx = x + w / 2;
     
-    // Cabeza, Tronco y Piernas
     ctx.beginPath(); ctx.arc(cx, y + (15 * scale), 10 * scale, 0, Math.PI * 2); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(cx, y + (25 * scale)); ctx.lineTo(cx, y + (55 * scale)); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(cx, y + (55 * scale)); ctx.lineTo(cx - (10 * scale), y + h); ctx.moveTo(cx, y + (55 * scale)); ctx.lineTo(cx + (10 * scale), y + h); ctx.stroke();
     
-    // Alas si es un enemigo volador
     if (isFlying) {
         let wingWave = Math.sin(Date.now() / 80) * 15;
         ctx.fillStyle = "rgba(255, 69, 0, 0.6)";
-        ctx.beginPath();
-        ctx.moveTo(cx, y + 35);
-        ctx.lineTo(cx - 35, y + 10 + wingWave);
-        ctx.lineTo(cx - 15, y + 45);
-        ctx.closePath(); ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(cx, y + 35);
-        ctx.lineTo(cx + 35, y + 10 + wingWave);
-        ctx.lineTo(cx + 15, y + 45);
-        ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(cx, y + 35); ctx.lineTo(cx - 35, y + 10 + wingWave); ctx.lineTo(cx - 15, y + 45); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(cx, y + 35); ctx.lineTo(cx + 35, y + 10 + wingWave); ctx.lineTo(cx + 15, y + 45); ctx.closePath(); ctx.fill();
     }
 
     if (hasGun) {
-        // El brazo del jugador ahora rota y apunta mecánicamente en la dirección del mouse
         let angle = Math.atan2(mouseY - (y + 35), mouseX - cx);
         ctx.save();
         ctx.translate(cx, y + 35);
@@ -505,16 +481,16 @@ function draw() {
         ctx.strokeStyle = "#ff0000"; ctx.lineWidth = 2; ctx.stroke();
     });
 
-    // Dibujar Entidades Comunes
+    // Dibujar Jugador
     drawStickman(player.x, player.y, player.color, true, player.facing === 1, player.isInvulnerable, 1, false);
     
-    // Indicador visual de carga de escudo sobre la cabeza del jugador
     if (shieldSystem.isCharging) {
         let pct = shieldSystem.chargeProgress / shieldSystem.requiredFrames;
         ctx.fillStyle = "#222"; ctx.fillRect(player.x - 5, player.y - 20, 50, 6);
         ctx.fillStyle = "#00bfff"; ctx.fillRect(player.x - 5, player.y - 20, 50 * pct, 6);
     }
 
+    // Dibujar Enemigos
     enemies.forEach(enemy => {
         const scale = enemy.isBoss ? 2 : 1;
         drawStickman(enemy.x, enemy.y, enemy.color, false, enemy.facing === 1, false, scale, enemy.isFlying);
@@ -524,56 +500,46 @@ function draw() {
         }
     });
 
-    // DISEÑO MEJORADO DEL DRAGÓN FINAL
+    // Dragón
     if (dragonSpawned && dragon) {
         ctx.save();
         let firePulse = Math.sin(Date.now() / 150) * 20;
 
-        // 1. Ala Trasera Gigante
         ctx.fillStyle = "#4a0072"; 
         ctx.beginPath(); ctx.moveTo(canvas.width, dragon.y + 150); ctx.lineTo(dragon.x + 180, dragon.y + 20); ctx.lineTo(dragon.x + 220, dragon.y + 180); ctx.closePath(); ctx.fill();
 
-        // 2. Cuerpo Central Escamado
         ctx.fillStyle = "#5c008a"; 
         ctx.beginPath(); ctx.moveTo(canvas.width, dragon.y + 100); ctx.quadraticCurveTo(dragon.x + 120, dragon.y + 150, dragon.x + 100, dragon.y + 250); ctx.lineTo(canvas.width, dragon.y + 380); ctx.closePath(); ctx.fill();
 
-        // Escamas
         ctx.strokeStyle = "#7b00b8"; ctx.lineWidth = 3;
         for(let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc(dragon.x + 160 + (i*30), dragon.y + 200 + (i*20), 25, 0, Math.PI); ctx.stroke(); }
 
-        // 3. Cuello y Cabeza
         ctx.fillStyle = "#6a009c";
         ctx.beginPath(); ctx.moveTo(dragon.x + 140, dragon.y + 230); ctx.quadraticCurveTo(dragon.x + 60, dragon.y + 150, dragon.x + 40, dragon.y + 100); ctx.lineTo(dragon.x - 20, dragon.y + 80); ctx.lineTo(dragon.x + 30, dragon.y + 130); ctx.lineTo(dragon.x + 100, dragon.y + 160); ctx.quadraticCurveTo(dragon.x + 110, dragon.y + 200, dragon.x + 140, dragon.y + 250); ctx.closePath(); ctx.fill();
 
-        // 4. Mandíbula Rugiendo
         ctx.fillStyle = "#4a0072"; ctx.beginPath(); ctx.moveTo(dragon.x + 30, dragon.y + 130); ctx.lineTo(dragon.x - 5, dragon.y + 115); ctx.lineTo(dragon.x + 40, dragon.y + 150); ctx.closePath(); ctx.fill();
 
-        // 5. Cuernos
         ctx.fillStyle = "#9900ff"; ctx.beginPath(); ctx.moveTo(dragon.x + 40, dragon.y + 90); ctx.lineTo(dragon.x + 10, dragon.y + 40); ctx.lineTo(dragon.x + 60, dragon.y + 95); ctx.closePath(); ctx.fill();
 
-        // 6. Ojo Brillante
         ctx.fillStyle = "#ffff00"; ctx.shadowColor = "#ffea00"; ctx.shadowBlur = 15;
         ctx.beginPath(); ctx.arc(dragon.x + 25, dragon.y + 95, 9, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = "#000000"; ctx.beginPath(); ctx.arc(dragon.x + 23, dragon.y + 95, 3, 0, Math.PI * 2); ctx.fill();
         ctx.restore(); 
 
-        // 7. Brillo pre-disparo
         let timeToShot = Date.now() - dragon.lastShot;
         if (timeToShot > 2000) {
             ctx.fillStyle = "rgba(255, 69, 0, " + (0.3 + Math.abs(firePulse/40)) + ")";
             ctx.beginPath(); ctx.arc(dragon.x + 25, dragon.y + 125, 25 + firePulse/2, 0, Math.PI*2); ctx.fill();
         }
 
-        // 8. Garra
         ctx.fillStyle = "#5c008a"; ctx.beginPath(); ctx.moveTo(dragon.x + 120, dragon.y + 270); ctx.lineTo(dragon.x + 50, dragon.y + 310); ctx.lineTo(dragon.x + 30, dragon.y + 305); ctx.moveTo(dragon.x + 50, dragon.y + 310); ctx.lineTo(dragon.x + 35, dragon.y + 320); ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 4; ctx.stroke();
 
-        // Barra de Vida Dragón UI
         ctx.fillStyle = "#222"; ctx.fillRect(canvas.width / 2 - 200, 30, 400, 20);
         ctx.fillStyle = "#9900ff"; ctx.fillRect(canvas.width / 2 - 200, 30, (dragon.lives / dragon.maxLives) * 400, 20);
         ctx.fillStyle = "#fff"; ctx.font = "bold 14px Arial"; ctx.fillText("DRAGÓN SUPREMO", canvas.width / 2 - 60, 45);
     }
 
-    // Dibujar Proyectiles
+    // Proyectiles
     bullets.forEach(b => { ctx.fillStyle = b.color; ctx.fillRect(b.x, b.y, b.width, b.height); });
     enemyBullets.forEach(eb => {
         ctx.fillStyle = eb.color;
@@ -583,19 +549,19 @@ function draw() {
         } else { ctx.fillRect(eb.x, eb.y, eb.width, eb.height); }
     });
 
-    // Interfaz de Vidas Reales (Corazones Rojos)
+    // Interfaz Corazones Rojos
     for (let i = 0; i < player.lives; i++) {
         let hx = canvas.width - 150 + (i * 35); let hy = 35;
         ctx.fillStyle = "#ff2266"; ctx.beginPath(); ctx.arc(hx-7, hy, 7, Math.PI, 0, false); ctx.arc(hx+7, hy, 7, Math.PI, 0, false); ctx.lineTo(hx, hy+12); ctx.closePath(); ctx.fill();
     }
 
-    // Interfaz de OVERSHIELD (Corazones de Metal Azulados)
+    // Interfaz Overshield Azul
     for (let i = 0; i < shieldSystem.current; i++) {
-        let sx = canvas.width - 150 + (i * 35); let sy = 65; // Una fila más abajo de los normales
+        let sx = canvas.width - 150 + (i * 35); let sy = 65; 
         ctx.fillStyle = "#00bfff"; ctx.beginPath(); ctx.arc(sx-7, sy, 7, Math.PI, 0, false); ctx.arc(sx+7, sy, 7, Math.PI, 0, false); ctx.lineTo(sx, sy+12); ctx.closePath(); ctx.fill();
     }
 
-    // Retículo visual del ratón (Puntero simple para apuntar mejor)
+    // Retículo visual del mouse
     ctx.strokeStyle = "rgba(255, 255, 255, 0.4)"; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.arc(mouseX, mouseY, 6, 0, Math.PI*2); ctx.stroke();
 
@@ -605,7 +571,7 @@ function draw() {
     ctx.font = "14px Arial"; ctx.fillStyle = "#aaa";
     ctx.fillText("Mantén 'O' quieto por 5s para recargar Overshield", 25, canvas.height - 50);
 
-    // ADVERTENCIA DEL DRAGÓN
+    // Advertencia Dragón
     if (dragonWarning) {
         ctx.fillStyle = "rgba(255, 0, 0, " + (Math.sin(Date.now() / 100) * 0.3 + 0.4) + ")"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#ffffff"; ctx.font = "bold 50px Arial"; ctx.textAlign = "center";
@@ -613,18 +579,16 @@ function draw() {
         ctx.textAlign = "left";
     }
 
-    // Menú Tienda
+    // Tienda
     if (showShop) {
         ctx.fillStyle = "rgba(0, 0, 0, 0.85)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#00ffcc"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
         ctx.fillText("TIENDA DE ARMAS (Juego Pausado)", canvas.width / 2, canvas.height * 0.25);
         ctx.fillStyle = "#ffffff"; ctx.font = "24px Arial"; ctx.fillText(`Tu Puntuación: ${score} pts`, canvas.width / 2, canvas.height * 0.35);
         
-        // Opción 1: MP5
         ctx.fillStyle = player.hasMP5 ? "#555" : (score >= 1000 ? "#00ffcc" : "#ff3333");
         ctx.fillText(player.hasMP5 ? "[COMPRADO] 1. Subfusil MP5 (Rápido)" : "[Presiona 1] Comprar MP5 - Costo: 1000 pts", canvas.width / 2, canvas.height * 0.5);
         
-        // Opción 2: Rifle de Asalto (Nuevo)
         ctx.fillStyle = player.hasRifle ? "#555" : (score >= 3000 ? "#00bfff" : "#ff3333");
         ctx.fillText(player.hasRifle ? "[COMPRADO] 2. Rifle Pesado (2 de Daño)" : "[Presiona 2] Comprar Rifle Pesado - Costo: 3000 pts", canvas.width / 2, canvas.height * 0.6);
         
