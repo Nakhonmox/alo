@@ -14,9 +14,10 @@ const gravity = 0.6;
 const floorY = canvas.height - 60;
 
 // ==========================================
-// CARGA DEL FONDO PERSONALIZADO
+// CARGA DEL FONDO PERSONALIZADO (CORREGIDO)
 // ==========================================
 const backgroundImage = new Image();
+backgroundImage.crossOrigin = "anonymous"; // Evita problemas de seguridad al renderizar
 backgroundImage.src = "https://wallpapers.com/images/high/feudal-japan-1920-x-1080-wallpaper-dn5ywwo9c4wccmgd.webp";
 
 // ==========================================
@@ -660,13 +661,8 @@ function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // DIBUJAR LA IMAGEN DE FONDO (Si ya cargó, de lo contrario usa color oscuro de respaldo)
-    if (backgroundImage.complete) {
-        ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
-    } else {
-        ctx.fillStyle = "#0a0a14";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
+    // DIBUJAR LA IMAGEN DE FONDO
+    ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
 
     if (gameState === "menu") {
         ctx.fillStyle = "rgba(10, 10, 20, 0.85)";
@@ -830,7 +826,7 @@ function draw() {
     }
 
     // ==========================================
-    // RENDERIZADO CORREGIDO DE LA TIENDA DE ARMAS
+    // TIENDA DE ARMAS
     // ==========================================
     if (showShop) {
         ctx.fillStyle = "rgba(10, 10, 20, 0.95)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -882,9 +878,27 @@ function draw() {
     }
 }
 
+function updateCanvasSize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+
 function loop() { 
     update(); 
     draw(); 
     requestAnimationFrame(loop); 
 }
-loop();
+
+// NUEVO DISPARADOR DE SEGURIDAD: El juego arranca inmediatamente al descargar la imagen
+backgroundImage.onload = function() {
+    updateCanvasSize(); // Ajustar el tamaño real
+    loop(); // Empezar el renderizado
+};
+
+// En caso de que la imagen ya se encontrara en caché
+if (backgroundImage.complete) {
+    updateCanvasSize();
+    loop();
+}
+
+window.addEventListener('resize', updateCanvasSize);
