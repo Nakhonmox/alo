@@ -14,6 +14,12 @@ const gravity = 0.6;
 const floorY = canvas.height - 60;
 
 // ==========================================
+// CARGA DEL FONDO PERSONALIZADO
+// ==========================================
+const backgroundImage = new Image();
+backgroundImage.src = "https://wallpapers.com/images/high/feudal-japan-1920-x-1080-wallpaper-dn5ywwo9c4wccmgd.webp";
+
+// ==========================================
 // SISTEMA DE ESTADOS DEL JUEGO
 // ==========================================
 let gameState = "menu"; // "menu", "playing"
@@ -140,12 +146,6 @@ const platforms = [
     { x: canvas.width * 0.25, y: floorY - 480, width: 250, height: 15 },
     { x: canvas.width * 0.55, y: floorY - 500, width: 250, height: 15 }
 ];
-
-// Fondo
-const stars = [];
-for (let i = 0; i < 60; i++) {
-    stars.push({ x: Math.random() * canvas.width, y: Math.random() * (canvas.height * 0.6), size: Math.random() * 2 });
-}
 
 window.addEventListener("mousemove", e => {
     mouseX = e.clientX;
@@ -660,10 +660,16 @@ function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = "#ffffff"; stars.forEach(s => ctx.fillRect(s.x, s.y, s.size, s.size));
+    // DIBUJAR LA IMAGEN DE FONDO (Si ya cargó, de lo contrario usa color oscuro de respaldo)
+    if (backgroundImage.complete) {
+        ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+    } else {
+        ctx.fillStyle = "#0a0a14";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
 
     if (gameState === "menu") {
-        ctx.fillStyle = "rgba(10, 10, 20, 0.8)";
+        ctx.fillStyle = "rgba(10, 10, 20, 0.85)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#00ffcc";
         ctx.font = "bold 60px Arial";
@@ -688,7 +694,15 @@ function draw() {
         return; 
     }
 
-    ctx.fillStyle = "#111116"; ctx.beginPath(); ctx.moveTo(0, floorY); ctx.lineTo(canvas.width*0.25, floorY-120); ctx.lineTo(canvas.width*0.6, floorY); ctx.lineTo(canvas.width*0.85, floorY-180); ctx.lineTo(canvas.width, floorY); ctx.fill();
+    // Dibujado de siluetas de terreno estilizadas sobre el fondo
+    ctx.fillStyle = "rgba(17, 17, 22, 0.6)"; 
+    ctx.beginPath(); 
+    ctx.moveTo(0, floorY); 
+    ctx.lineTo(canvas.width*0.25, floorY-120); 
+    ctx.lineTo(canvas.width*0.6, floorY); 
+    ctx.lineTo(canvas.width*0.85, floorY-180); 
+    ctx.lineTo(canvas.width, floorY); 
+    ctx.fill();
 
     ctx.fillStyle = "#1e1e24"; ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
     ctx.fillStyle = "#00ffcc"; ctx.fillRect(0, floorY, canvas.width, 4);
