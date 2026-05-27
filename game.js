@@ -14,10 +14,10 @@ const gravity = 0.6;
 const floorY = canvas.height - 60;
 
 // ==========================================
-// CARGA DEL FONDO PERSONALIZADO (CORREGIDO)
+// CARGA DEL FONDO PERSONALIZADO
 // ==========================================
 const backgroundImage = new Image();
-backgroundImage.crossOrigin = "anonymous"; // Evita problemas de seguridad al renderizar
+backgroundImage.crossOrigin = "anonymous"; 
 backgroundImage.src = "https://wallpapers.com/images/high/feudal-japan-1920-x-1080-wallpaper-dn5ywwo9c4wccmgd.webp";
 
 // ==========================================
@@ -527,7 +527,7 @@ function update() {
                 if (enemy.y >= floorY - enemy.height) { enemy.y = floorY - enemy.height; enemy.velocityY = 0; enemy.isGrounded = true; }
                 platforms.forEach(plat => {
                     if (enemy.velocityY >= 0 && enemy.x + enemy.width > plat.x && enemy.x < plat.x + plat.width && enemy.y + enemy.height <= plat.y + 8 && enemy.y + enemy.height + enemy.velocityY >= plat.y) {
-                        enemy.y = plat.y - enemy.height; enemy.velocityY = 0; enemy.isGrounded = true;
+                        enemy.y = plat.y - enemy.height; enemy.velocityY = 0; decline = true; enemy.isGrounded = true;
                     }
                 });
                 if (player.y < enemy.y && enemy.isGrounded && Math.random() < 0.02) { enemy.velocityY = -12; enemy.isGrounded = false; }
@@ -608,11 +608,15 @@ function checkCollision(rect1, rect2) {
     return rect1.x < rect2.x + rect2.width && rect1.x + rect1.width > rect2.x && rect1.y < rect2.y + rect2.height && rect1.y + rect1.height > rect2.y;
 }
 
+// ==========================================
+// DIBUJADO DE STICKMAN MODIFICADO (KATANAS)
+// ==========================================
 function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 1, isFlying = false) {
     if (isInvulnerable && Math.floor(Date.now() / 100) % 2 === 0) return;
     ctx.strokeStyle = color; ctx.lineWidth = 3 * scale; ctx.fillStyle = color;
     const w = 40 * scale; const h = 80 * scale; const cx = x + w / 2;
     
+    // Cabeza, Cuerpo y Piernas
     ctx.beginPath(); ctx.arc(cx, y + (15 * scale), 10 * scale, 0, Math.PI * 2); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(cx, y + (25 * scale)); ctx.lineTo(cx, y + (55 * scale)); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(cx, y + (55 * scale)); ctx.lineTo(cx - (10 * scale), y + h); ctx.moveTo(cx, y + (55 * scale)); ctx.lineTo(cx + (10 * scale), y + h); ctx.stroke();
@@ -625,35 +629,67 @@ function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 
     }
 
     if (hasGun) {
+        // Brazos y Armas del Jugador (Se mantiene apuntando al ratón)
         let angle = Math.atan2(mouseY - (y + 35), mouseX - cx);
 
         if (player.currentWeapon === "duales") {
-            ctx.save();
-            ctx.translate(cx, y + 30);
-            ctx.rotate(angle);
+            ctx.save(); ctx.translate(cx, y + 30); ctx.rotate(angle);
             ctx.strokeStyle = color; ctx.lineWidth = 3 * scale;
             ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(18, -4); ctx.stroke(); 
             ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.moveTo(18, -4); ctx.lineTo(28, -4); ctx.stroke(); 
-            ctx.restore();
+            ctx.beginPath(); ctx.moveTo(18, -4); ctx.lineTo(28, -4); ctx.stroke(); ctx.restore();
 
-            ctx.save();
-            ctx.translate(cx, y + 42);
-            ctx.rotate(angle);
+            ctx.save(); ctx.translate(cx, y + 42); ctx.rotate(angle);
             ctx.strokeStyle = color; ctx.lineWidth = 3 * scale;
             ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(18, 4); ctx.stroke();  
             ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.moveTo(18, 4); ctx.lineTo(28, 4); ctx.stroke();  
-            ctx.restore();
+            ctx.beginPath(); ctx.moveTo(18, 4); ctx.lineTo(28, 4); ctx.stroke(); ctx.restore();
         } else {
-            ctx.save();
-            ctx.translate(cx, y + 35);
-            ctx.rotate(angle);
+            ctx.save(); ctx.translate(cx, y + 35); ctx.rotate(angle);
             ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(20, 0); ctx.stroke();
             ctx.strokeStyle = "#ffffff"; 
             ctx.lineWidth = player.currentWeapon === "mp5" ? 5 : (player.currentWeapon === "rifle" ? 6 : 3);
-            ctx.beginPath(); ctx.moveTo(20, 0); ctx.lineTo(player.currentWeapon === "rifle" ? 38 : 30, 0); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(20, 0); ctx.lineTo(player.currentWeapon === "rifle" ? 38 : 30, 0); ctx.stroke(); ctx.restore();
+        }
+    } else {
+        // ENEMY RENDER: Si es un enemigo pequeño y normal (Color Rojo), le damos una Katana
+        if (color === "#ff3333" && scale === 1 && !isFlying) {
+            ctx.save();
+            ctx.translate(cx, y + 35);
+            
+            // Animación sutil de respiración/guardia para la katana
+            let katanaWobble = Math.sin(Date.now() / 120) * 0.15;
+            let dir = facingRight ? 1 : -1;
+            
+            // Ángulo diagonal hacia arriba simulando la pose del samurai
+            let angleBase = dir === 1 ? -Math.PI / 4 : -Math.PI * 3 / 4;
+            ctx.rotate(angleBase + katanaWobble);
+
+            // Brazo del enemigo sosteniendo la espada
+            ctx.strokeStyle = color; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(15, 0); ctx.stroke();
+
+            // Mango de la Katana (Color marrón/negro)
+            ctx.strokeStyle = "#4a2c11"; ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.moveTo(15, 0); ctx.lineTo(22, 0); ctx.stroke();
+
+            // Tsuba (Guardamano dorado/amarillo)
+            ctx.strokeStyle = "#ffd700"; ctx.lineWidth = 5;
+            ctx.beginPath(); ctx.moveTo(22, -4); ctx.lineTo(22, 4); ctx.stroke();
+
+            // Hoja de la Katana (Plateada / Gris brillante)
+            ctx.strokeStyle = "#e0e0e0"; ctx.lineWidth = 2.5;
+            ctx.beginPath(); ctx.moveTo(22, 0); ctx.lineTo(47, 0); ctx.stroke();
+            
+            // Filo luminoso blanco de la katana
+            ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(24, -1); ctx.lineTo(46, -1); ctx.stroke();
+
             ctx.restore();
+        } else {
+            // Brazos por defecto para los jefes u otros enemigos sin armas específicas
+            let dir = facingRight ? 1 : -1;
+            ctx.beginPath(); ctx.moveTo(cx, y + 35); ctx.lineTo(cx + (15 * scale * dir), y + 45); ctx.stroke();
         }
     }
 }
@@ -889,13 +925,12 @@ function loop() {
     requestAnimationFrame(loop); 
 }
 
-// NUEVO DISPARADOR DE SEGURIDAD: El juego arranca inmediatamente al descargar la imagen
+// Inicialización de seguridad con la imagen
 backgroundImage.onload = function() {
-    updateCanvasSize(); // Ajustar el tamaño real
-    loop(); // Empezar el renderizado
+    updateCanvasSize();
+    loop();
 };
 
-// En caso de que la imagen ya se encontrara en caché
 if (backgroundImage.complete) {
     updateCanvasSize();
     loop();
