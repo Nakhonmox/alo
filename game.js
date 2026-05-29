@@ -61,9 +61,10 @@ const weaponsCatalog = {
     galil:   { name: "Rifle Galil AR", baseAmmo: 25, cooldown: 180, damage: 2, cost: 4000, purchased: false, color: "#00ff66" }
 };
 
+// MODIFICACIÓN: Ahora cada ronda tiene exactamente 10 enemigos más que la anterior
 function getTotalEnemiesForRound(round) {
     if (round === 1) return 20;
-    return 20 + (round - 1) * 15; 
+    return 20 + (round - 1) * 10; 
 }
 
 function startNextRound() {
@@ -79,21 +80,21 @@ function startNextRound() {
     
     clearInterval(spawnEnemyInterval);
     clearInterval(spawnFlyingInterval);
-    clearInterval(spawnShieldedInterval); // Limpiar intervalo de enemigo con escudo
+    clearInterval(spawnShieldedInterval); 
     
+    // MODIFICACIÓN: Cada múltiplo de 5, los enemigos salen 0.5s más rápido (Tope mínimo de 1s o 1000ms)
     let baseEnemyTime = 2500;
     let baseFlyingTime = 4000;
     
-    if (currentRound > 5) {
-        let dynamicReduction = (currentRound - 5) * 500;
-        baseEnemyTime = Math.max(500, 2500 - dynamicReduction);
-        baseFlyingTime = Math.max(800, 4000 - dynamicReduction);
+    // Calculamos cuántas veces se ha alcanzado o superado un múltiplo de 5
+    let speedIncrements = Math.floor(currentRound / 5);
+    if (speedIncrements > 0) {
+        baseEnemyTime = Math.max(1000, 2500 - (speedIncrements * 500));
+        baseFlyingTime = Math.max(1000, 4000 - (speedIncrements * 500));
     }
     
     spawnEnemyInterval = setInterval(spawnEnemy, baseEnemyTime);
     spawnFlyingInterval = setInterval(spawnFlyingEnemy, baseFlyingTime);
-    
-    // Volver a activar el intervalo de enemigos con escudo si corresponde
     spawnShieldedInterval = setInterval(spawnShieldedEnemy, 10000);
 }
 
@@ -440,6 +441,9 @@ function spawnEnemy() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return; 
     if (!sampleEnemySpawn()) return;
 
+    // MODIFICACIÓN: Cada 5 rondas, la vida máxima y actual aumenta en 1 punto.
+    let extraHealth = Math.floor(currentRound / 5);
+
     enemiesSpawnedInRound++;
     enemies.push({
         x: Math.random() > 0.5 ? canvas.width + 20 : -50,
@@ -451,8 +455,8 @@ function spawnEnemy() {
         isBoss: false,
         isFlying: false,
         isShielded: false,
-        lives: 2, 
-        maxLives: 2,
+        lives: 2 + extraHealth, 
+        maxLives: 2 + extraHealth,
         lastGrenade: Date.now() + Math.random() * 2000
     });
 }
@@ -472,6 +476,9 @@ function spawnFlyingEnemy() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return; 
     if (!sampleFlyingSpawn()) return;
 
+    // MODIFICACIÓN: Aplicación de la vida extra cada 5 rondas para voladores
+    let extraHealth = Math.floor(currentRound / 5);
+
     enemiesSpawnedInRound++;
     enemies.push({
         x: Math.random() > 0.5 ? canvas.width + 20 : -50,
@@ -482,8 +489,8 @@ function spawnFlyingEnemy() {
         isBoss: false,
         isFlying: true,
         isShielded: false,
-        lives: 1,
-        maxLives: 1
+        lives: 1 + extraHealth,
+        maxLives: 1 + extraHealth
     });
 }
 let spawnFlyingInterval = setInterval(spawnFlyingEnemy, 4000);
@@ -493,19 +500,22 @@ function spawnShieldedEnemy() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return;
     if (!sampleShieldedSpawn()) return;
 
+    // MODIFICACIÓN: Aplicación de la vida extra cada 5 rondas para blindados
+    let extraHealth = Math.floor(currentRound / 5);
+
     enemiesSpawnedInRound++;
     enemies.push({
         x: Math.random() > 0.5 ? canvas.width + 20 : -50,
         y: floorY - 80,
         width: 45, height: 80,
         velocityY: 0, isGrounded: true,
-        speed: 1.5, // Un poco más lento debido al peso del escudo
-        color: "#4f5d75", // Gris azulado acorazado
+        speed: 1.5, 
+        color: "#4f5d75", 
         isBoss: false,
         isFlying: false,
         isShielded: true,
-        lives: 5, 
-        maxLives: 5,
+        lives: 5 + extraHealth, 
+        maxLives: 5 + extraHealth,
         lastGrenade: Date.now() + Math.random() * 3000
     });
 }
@@ -513,6 +523,10 @@ let spawnShieldedInterval = setInterval(spawnShieldedEnemy, 10000);
 
 function spawnBoss() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return; 
+    
+    // MODIFICACIÓN: Aplicación de la vida extra cada 5 rondas para los minijefes
+    let extraHealth = Math.floor(currentRound / 5);
+
     enemies.push({
         x: canvas.width + 100,
         y: floorY - 160,
@@ -523,7 +537,7 @@ function spawnBoss() {
         isBoss: true,
         isFlying: false,
         isShielded: false,
-        lives: 10, maxLives: 10,
+        lives: 10 + extraHealth, maxLives: 10 + extraHealth,
         lastShot: Date.now()
     });
 }
@@ -765,14 +779,12 @@ function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 
     }
 
     if (isShielded) {
-        // Dibujar un escudo de energía frente al enemigo acorazado
         ctx.fillStyle = "rgba(0, 191, 255, 0.4)";
         ctx.strokeStyle = "#00bfff";
         ctx.lineWidth = 3;
         ctx.save();
         let shieldOffset = facingRight ? 20 : -15;
         ctx.beginPath();
-        // Arco ovalado vertical simulando un gran escudo antidisturbios táctico
         ctx.roundRect(cx + shieldOffset, y + 15, 12 * scale, 55 * scale, 5);
         ctx.fill();
         ctx.stroke();
