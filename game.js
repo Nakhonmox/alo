@@ -889,7 +889,7 @@ function draw() {
     ctx.font = "bold 24px Arial";
     ctx.fillText(`RONDA: ${currentRound}`, 25, 45);
     ctx.font = "18px Arial"; ctx.fillStyle = "#ff3333";
-    ctx.fillText(`Enemigos restantes: ${enemiesLeftInRound > 0 ? enemiesLeftInRound : 0}`, 25, 75);
+    ctx.fillText(`Enemigos restantes: ${enemiesLeftInRound > 0 ? enemiesLeftInRound : 0}`, 25, 95);
 
     // MENÚ DE INTERMEDIO
     if (isRoundBreak) {
