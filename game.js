@@ -54,7 +54,7 @@ const permanentUpgrades = {
     bonusMaxAmmo: 0
 };
 
-// ESTRUCTURA COMPLETA DE ARMAS DE LA TIENDA (Galil SAR Agregada)
+// ESTRUCTURA COMPLETA DE ARMAS DE LA TIENDA
 const weaponsCatalog = {
     pistola: { name: "Pistola Base", baseAmmo: 9, cooldown: 400, damage: 1, cost: 0, purchased: true, color: "#ffffff" },
     mp5:     { name: "Subfusil MP5", baseAmmo: 20, cooldown: 130, damage: 1, cost: 1000, purchased: false, color: "#ffff00" },
@@ -62,6 +62,18 @@ const weaponsCatalog = {
     rifle:   { name: "Rifle Pesado", baseAmmo: 5, cooldown: 800, damage: 2, cost: 3000, purchased: false, color: "#00bfff" },
     galil:   { name: "Galil SAR", baseAmmo: 25, cooldown: 130, damage: 2, cost: 5000, purchased: false, color: "#4caf50" }
 };
+
+// ==========================================
+// SISTEMA DEL CÓDIGO KONAMI
+// ==========================================
+const konamiCode = [
+    "arrowup", "arrowup", 
+    "arrowdown", "arrowdown", 
+    "arrowleft", "arrowright", 
+    "arrowleft", "arrowright", 
+    "b", "a"
+];
+let konamiIndex = 0;
 
 function getTotalEnemiesForRound(round) {
     if (round === 1) return 20;
@@ -191,11 +203,29 @@ window.addEventListener("click", e => {
     }
 });
 
-// Tienda interactiva (Controles de Galil agregados)
+// Tienda interactiva y Lectura de Teclas
 window.addEventListener("keydown", e => {
-    if (gameState !== "playing" || isRoundBreak) return; 
+    if (gameState !== "playing") return; 
     
     const key = e.key.toLowerCase();
+
+    // Verificación del código Konami (Solo activo durante la partida)
+    if (!isRoundBreak) {
+        if (key === konamiCode[konamiIndex]) {
+            konamiIndex++;
+            if (konamiIndex === konamiCode.length) {
+                score += 10000;
+                scoreEl.innerText = score;
+                konamiIndex = 0; // Reiniciar para poder usarlo de nuevo
+            }
+        } else {
+            // Si se equivoca, se comprueba si la tecla presionada era al menos el inicio de la secuencia (Arriba)
+            konamiIndex = (key === konamiCode[0]) ? 1 : 0;
+        }
+    }
+
+    if (isRoundBreak) return;
+
     if (key === "t") { showShop = !showShop; isPaused = showShop; return; }
     
     if (showShop) {
@@ -666,7 +696,6 @@ function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 
             ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(20, 0); ctx.stroke();
             ctx.strokeStyle = "#ffffff"; 
             
-            // Grosor/Longitud visual de los rifles y subfusiles
             if (player.currentWeapon === "mp5") ctx.lineWidth = 5;
             else if (player.currentWeapon === "rifle" || player.currentWeapon === "galil") ctx.lineWidth = 6;
             else ctx.lineWidth = 3;
@@ -678,7 +707,6 @@ function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 
             ctx.restore();
         }
     } else {
-        // ASIGNACIÓN DE KATANA
         if (color === "#ff3333" && scale === 1 && !isFlying) {
             ctx.save();
             ctx.translate(cx, y + 35);
@@ -869,9 +897,6 @@ function draw() {
         ctx.textAlign = "left";
     }
 
-    // ==========================================
-    // RENDERIZADO CORREGIDO DE LA TIENDA DE ARMAS (Galil SAR Agregada)
-    // ==========================================
     if (showShop) {
         ctx.fillStyle = "rgba(10, 10, 20, 0.95)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#00ffcc"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
@@ -917,7 +942,7 @@ function draw() {
             ctx.fillText(`[Presiona 4] Comprar Rifle Pesado - Costo: ${weaponsCatalog.rifle.cost} pts`, canvas.width / 2, canvas.height * 0.62);
         }
 
-        // 5. Galil SAR (Nueva)
+        // 5. Galil SAR
         if (player.currentWeapon === "galil") {
             ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 5. Rifle Automático Galil SAR", canvas.width / 2, canvas.height * 0.72);
         } else if (weaponsCatalog.galil.purchased) {
