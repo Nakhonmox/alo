@@ -53,15 +53,31 @@ const permanentUpgrades = {
     bonusMaxAmmo: 0
 };
 
+// NUEVO: Se añade 'upgradeLevel' a cada arma para gestionar las mejoras de forma individual
 const weaponsCatalog = {
-    pistola: { name: "Pistola Base", baseAmmo: 9, cooldown: 400, damage: 1, cost: 0, purchased: true, color: "#ffffff" },
-    mp5:     { name: "Subfusil MP5", baseAmmo: 20, cooldown: 130, damage: 1, cost: 1000, purchased: false, color: "#ffff00" },
-    duales:  { name: "Pistolas Duales", baseAmmo: 18, cooldown: 220, damage: 1, cost: 2000, purchased: false, color: "#ff00ff" },
-    rifle:   { name: "Rifle Pesado", baseAmmo: 5, cooldown: 800, damage: 2, cost: 3000, purchased: false, color: "#00bfff" },
-    galil:   { name: "Rifle Galil AR", baseAmmo: 25, cooldown: 180, damage: 2, cost: 4000, purchased: false, color: "#00ff66" }
+    pistola: { name: "Pistola Base", baseAmmo: 9, cooldown: 400, damage: 1, cost: 0, purchased: true, color: "#ffffff", upgradeLevel: 0 },
+    mp5:     { name: "Subfusil MP5", baseAmmo: 20, cooldown: 130, damage: 1, cost: 1000, purchased: false, color: "#ffff00", upgradeLevel: 0 },
+    duales:  { name: "Pistolas Duales", baseAmmo: 18, cooldown: 220, damage: 1, cost: 2000, purchased: false, color: "#ff00ff", upgradeLevel: 0 },
+    rifle:   { name: "Rifle Pesado", baseAmmo: 5, cooldown: 800, damage: 2, cost: 3000, purchased: false, color: "#00bfff", upgradeLevel: 0 },
+    galil:   { name: "Rifle Galil AR", baseAmmo: 25, cooldown: 180, damage: 2, cost: 4000, purchased: false, color: "#00ff66", upgradeLevel: 0 }
 };
 
-// MODIFICACIÓN: Ahora cada ronda tiene exactamente 10 enemigos más que la anterior
+// ==========================================
+// CONFIGURACIÓN DEL PACK A PUNCH (MÁQUINA DE MEJORAS)
+// ==========================================
+// Buscamos la plataforma más alta (en este caso es la del edificio central: y = floorY - 420, width = 200)
+// Colocamos la máquina sobre esa plataforma
+const packAPunch = {
+    x: (canvas.width / 2) - 25, // Centrada en la plataforma de en medio arriba
+    y: (canvas.height - 60) - 420 - 60, // Justo encima de la plataforma alta
+    width: 50,
+    height: 60,
+    cost: 10000,
+    chargeProgress: 0,
+    requiredFrames: 300, // 5 segundos a 60 FPS
+    isUpgrading: false
+};
+
 function getTotalEnemiesForRound(round) {
     if (round === 1) return 20;
     return 20 + (round - 1) * 10; 
@@ -82,11 +98,9 @@ function startNextRound() {
     clearInterval(spawnFlyingInterval);
     clearInterval(spawnShieldedInterval); 
     
-    // MODIFICACIÓN: Cada múltiplo de 5, los enemigos salen 0.5s más rápido (Tope mínimo de 1s o 1000ms)
     let baseEnemyTime = 2500;
     let baseFlyingTime = 4000;
     
-    // Calculamos cuántas veces se ha alcanzado o superado un múltiplo de 5
     let speedIncrements = Math.floor(currentRound / 5);
     if (speedIncrements > 0) {
         baseEnemyTime = Math.max(1000, 2500 - (speedIncrements * 500));
@@ -147,21 +161,14 @@ let enemies = [];
 let medkits = [];
 let dragon = null;     
 
-// ==========================================
-// EDIFICIOS SEPARADOS Y DISTRIBUIDOS EN PANTALLA
-// ==========================================
 const buildingWidth = 280;
 
 const buildings = [
-    // Edificio 1: Lateral Izquierdo
     { x: canvas.width * 0.12, width: buildingWidth, height: floorY - 140, color: "#3a221d" },  
-    // Edificio 2: Eje Central
     { x: (canvas.width / 2) - (buildingWidth / 2), width: buildingWidth, height: floorY - 60, color: "#2d2522" }, 
-    // Edificio 3: Lateral Derecho
     { x: canvas.width * 0.88 - buildingWidth, width: buildingWidth, height: floorY - 180, color: "#332624" }   
 ];
 
-// Inicializar ventanas dinámicas
 buildings.forEach(bld => {
     bld.windows = [];
     let rows = Math.floor(bld.height / 55);
@@ -177,31 +184,18 @@ buildings.forEach(bld => {
     }
 });
 
-// ==========================================
-// PLATAFORMAS PERFECTAMENTE ENLAZADAS CON LOS EDIFICIOS SEPARADOS
-// ==========================================
 const platforms = [
-    // Cornisas y balcones del Edificio Izquierdo (Edificio 1)
     { x: buildings[0].x - 20, y: floorY - 150, width: 140, height: 15 },
     { x: buildings[0].x + 140, y: floorY - 270, width: 140, height: 15 },
-    
-    // Plataformas intermedias de salto para cruzar al centro
     { x: buildings[0].x + 260, y: floorY - 380, width: 120, height: 15 },
-
-    // Cornisas y balcones del Edificio Central (Edificio 2)
     { x: buildings[1].x + 10, y: floorY - 180, width: 120, height: 15 },
     { x: buildings[1].x + 150, y: floorY - 300, width: 120, height: 15 },
-    { x: buildings[1].x + 40, y: floorY - 420, width: 200, height: 15 },
-    
-    // Plataformas intermedias de salto lado derecho
+    { x: buildings[1].x + 40, y: floorY - 420, width: 200, height: 15 }, // PLATAFORMA MÁS ALTA
     { x: buildings[2].x - 100, y: floorY - 350, width: 120, height: 15 },
-
-    // Cornisas y balcones del Edificio Derecho (Edificio 3)
     { x: buildings[2].x + 20, y: floorY - 160, width: 130, height: 15 },
     { x: buildings[2].x + 130, y: floorY - 290, width: 140, height: 15 }
 ];
 
-// Estrellas decorativas del fondo
 const stars = [];
 for (let i = 0; i < 60; i++) {
     stars.push({ x: Math.random() * canvas.width, y: Math.random() * (canvas.height * 0.6), size: Math.random() * 2 });
@@ -222,7 +216,7 @@ for (let i = 0; i < 8; i++) {
 window.addEventListener("mousemove", e => {
     mouseX = e.clientX;
     mouseY = e.clientY;
-    if (!isRoundBreak && !isPaused) {
+    if (!isRoundBreak && !isPaused && !packAPunch.isUpgrading) {
         player.facing = (mouseX >= player.x + player.width / 2) ? 1 : -1;
     }
 });
@@ -355,7 +349,8 @@ function equipWeapon(weaponId) {
 }
 
 window.addEventListener("keydown", e => {
-    if (gameState !== "playing" || isRoundBreak || isPaused) return; 
+    // MODIFICACIÓN: Si está mejorando en el Pack-a-Punch, bloquea el disparo por completo
+    if (gameState !== "playing" || isRoundBreak || isPaused || packAPunch.isUpgrading) return; 
     
     if (e.key === " " && player.lives > 0) {
         if (player.isReloading) return;
@@ -441,7 +436,6 @@ function spawnEnemy() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return; 
     if (!sampleEnemySpawn()) return;
 
-    // MODIFICACIÓN: Cada 5 rondas, la vida máxima y actual aumenta en 1 punto.
     let extraHealth = Math.floor(currentRound / 5);
 
     enemiesSpawnedInRound++;
@@ -476,7 +470,6 @@ function spawnFlyingEnemy() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return; 
     if (!sampleFlyingSpawn()) return;
 
-    // MODIFICACIÓN: Aplicación de la vida extra cada 5 rondas para voladores
     let extraHealth = Math.floor(currentRound / 5);
 
     enemiesSpawnedInRound++;
@@ -495,12 +488,10 @@ function spawnFlyingEnemy() {
 }
 let spawnFlyingInterval = setInterval(spawnFlyingEnemy, 4000);
 
-// NUEVO ENEMIGO CON ESCUDO (Aparece cada 10seg desde la ronda 5)
 function spawnShieldedEnemy() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return;
     if (!sampleShieldedSpawn()) return;
 
-    // MODIFICACIÓN: Aplicación de la vida extra cada 5 rondas para blindados
     let extraHealth = Math.floor(currentRound / 5);
 
     enemiesSpawnedInRound++;
@@ -524,7 +515,6 @@ let spawnShieldedInterval = setInterval(spawnShieldedEnemy, 10000);
 function spawnBoss() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return; 
     
-    // MODIFICACIÓN: Aplicación de la vida extra cada 5 rondas para los minijefes
     let extraHealth = Math.floor(currentRound / 5);
 
     enemies.push({
@@ -588,7 +578,7 @@ function update() {
 
     if (isRoundBreak) return;
 
-    if (keys["o"] && !player.isInvulnerable && shieldSystem.current < shieldSystem.max) {
+    if (keys["o"] && !player.isInvulnerable && shieldSystem.current < shieldSystem.max && !packAPunch.isUpgrading) {
         shieldSystem.isCharging = true;
         shieldSystem.chargeProgress++;
         if (shieldSystem.chargeProgress >= shieldSystem.requiredFrames) {
@@ -611,7 +601,39 @@ function update() {
         if (player.invulnerableTimer <= 0) player.isInvulnerable = false;
     }
 
-    if (!shieldSystem.isCharging) {
+    // ==========================================
+    // LÓGICA DE INTERACCIÓN PACK-A-PUNCH
+    // ==========================================
+    // Verificar si el jugador colisiona/está en la zona de la máquina
+    let playerCenterX = player.x + player.width / 2;
+    let playerCenterY = player.y + player.height / 2;
+    let nearPackAPunch = (playerCenterX > packAPunch.x - 30 && playerCenterX < packAPunch.x + packAPunch.width + 30 &&
+                          playerCenterY > packAPunch.y - 30 && playerCenterY < packAPunch.y + packAPunch.height + 30);
+
+    if (keys["u"] && nearPackAPunch && score >= packAPunch.cost) {
+        packAPunch.isUpgrading = true;
+        packAPunch.chargeProgress++;
+
+        if (packAPunch.chargeProgress >= packAPunch.requiredFrames) {
+            // Completar mejora individual para el arma equipada actualmente
+            let currentWeaponData = weaponsCatalog[player.currentWeapon];
+            currentWeaponData.upgradeLevel++;
+            currentWeaponData.damage += 1;
+            currentWeaponData.name = currentWeaponData.name.split(" +")[0] + " +" + currentWeaponData.upgradeLevel;
+            
+            score -= packAPunch.cost;
+            scoreEl.innerText = score;
+
+            packAPunch.isUpgrading = false;
+            packAPunch.chargeProgress = 0;
+        }
+    } else {
+        packAPunch.isUpgrading = false;
+        packAPunch.chargeProgress = 0;
+    }
+
+    // MODIFICACIÓN: Bloquea el movimiento horizontal y saltos si está mejorando
+    if (!shieldSystem.isCharging && !packAPunch.isUpgrading) {
         if (keys["a"] && player.x > 0) { player.x -= player.speed; }
         if (keys["d"] && player.x < canvas.width - player.width) { player.x += player.speed; }
         if (keys["w"] && player.isGrounded) { player.velocityY = -player.jumpForce; player.isGrounded = false; }
@@ -859,7 +881,6 @@ function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Fondo estelar nocturno
     ctx.fillStyle = "#ffffff"; stars.forEach(s => ctx.fillRect(s.x, s.y, s.size, s.size));
 
     if (gameState === "menu") {
@@ -890,28 +911,21 @@ function draw() {
         return; 
     }
 
-    // ==========================================
-    // RENDERIZADO DE EDIFICIOS DISTRIBUIDOS
-    // ==========================================
     buildings.forEach(bld => {
         ctx.fillStyle = bld.color;
         ctx.fillRect(bld.x, floorY - bld.height, bld.width, bld.height);
 
-        // Cornisa superior estética
         ctx.fillStyle = "#1e1513";
         ctx.fillRect(bld.x, floorY - bld.height, bld.width, 6);
 
-        // Ventanas
         bld.windows.forEach(w => {
             ctx.fillStyle = w.lit ? "#ffdd66" : "#1a1211"; 
             ctx.fillRect(bld.x + w.relX, (floorY - bld.height) + w.relY, 16, 16);
         });
     });
 
-    // Siluetas de fondo
     ctx.fillStyle = "#111116"; ctx.beginPath(); ctx.moveTo(0, floorY); ctx.lineTo(canvas.width*0.25, floorY-120); ctx.lineTo(canvas.width*0.6, floorY); ctx.lineTo(canvas.width*0.85, floorY-180); ctx.lineTo(canvas.width, floorY); ctx.fill();
 
-    // Barriles decorativos
     backgroundDecorations.forEach(barrel => {
         ctx.fillStyle = barrel.color;
         ctx.fillRect(barrel.x, barrel.y, barrel.width, barrel.height);
@@ -926,15 +940,48 @@ function draw() {
         }
     });
 
-    // Suelo de combate principal
     ctx.fillStyle = "#1e1e24"; ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
     ctx.fillStyle = "#00ffcc"; ctx.fillRect(0, floorY, canvas.width, 4);
 
-    // Renderizado de las plataformas integradas en la nueva estructura urbana
     platforms.forEach(plat => { 
         ctx.fillStyle = "#4e413d"; ctx.fillRect(plat.x, plat.y, plat.width, plat.height); 
         ctx.fillStyle = "#ffaa44"; ctx.fillRect(plat.x, plat.y, plat.width, 2); 
     });
+
+    // ==========================================
+    // RENDERIZADO VISUAL DEL PACK-A-PUNCH
+    // ==========================================
+    ctx.fillStyle = "#4b0082"; // Máquina morada de fondo
+    ctx.fillRect(packAPunch.x, packAPunch.y, packAPunch.width, packAPunch.height);
+    ctx.strokeStyle = "#da70d6"; ctx.lineWidth = 3;
+    ctx.strokeRect(packAPunch.x, packAPunch.y, packAPunch.width, packAPunch.height);
+    
+    // Luces de decoración en la máquina
+    ctx.fillStyle = Math.floor(Date.now() / 250) % 2 === 0 ? "#00ffff" : "#ff00ff";
+    ctx.fillRect(packAPunch.x + 8, packAPunch.y + 10, 8, 8);
+    ctx.fillRect(packAPunch.x + packAPunch.width - 16, packAPunch.y + 10, 8, 8);
+
+    // Texto de indicación sobre la máquina si el jugador está cerca
+    let playerCenterX = player.x + player.width / 2;
+    let playerCenterY = player.y + player.height / 2;
+    if (playerCenterX > packAPunch.x - 30 && playerCenterX < packAPunch.x + packAPunch.width + 30 &&
+        playerCenterY > packAPunch.y - 30 && playerCenterY < packAPunch.y + packAPunch.height + 30 && !packAPunch.isUpgrading) {
+        ctx.fillStyle = "#ffffff"; ctx.font = "bold 13px Arial"; ctx.textAlign = "center";
+        ctx.fillText(score >= packAPunch.cost ? "[Mantén U] Mejorar Arma (10k pts)" : "Pack-A-Punch (10,000 pts)", packAPunch.x + packAPunch.width/2, packAPunch.y - 12);
+        ctx.textAlign = "left";
+    }
+
+    // INTERFAZ DE PROGRESO: Mensaje "MEJORANDO" y la barra si se mantiene presionada la U
+    if (packAPunch.isUpgrading) {
+        ctx.fillStyle = "#ffff00"; ctx.font = "bold 16px Arial"; ctx.textAlign = "center";
+        ctx.fillText("MEJORANDO...", packAPunch.x + packAPunch.width / 2, packAPunch.y - 25);
+        
+        // Dibujo de la barra de progreso
+        let progressPct = packAPunch.chargeProgress / packAPunch.requiredFrames;
+        ctx.fillStyle = "#222"; ctx.fillRect(packAPunch.x - 25, packAPunch.y - 15, 100, 8);
+        ctx.fillStyle = "#00ffcc"; ctx.fillRect(packAPunch.x - 25, packAPunch.y - 15, 100 * progressPct, 8);
+        ctx.textAlign = "left";
+    }
 
     medkits.forEach(m => { ctx.fillStyle = "#ffffff"; ctx.fillRect(m.x, m.y, m.width, m.height); ctx.fillStyle = "#ff0000"; ctx.fillRect(m.x + m.width/2 - 2, m.y + 4, 4, m.height - 8); ctx.fillRect(m.x + 4, m.y + m.height/2 - 2, m.width - 8, 4); });
 
@@ -956,13 +1003,12 @@ function draw() {
         const scale = enemy.isBoss ? 2 : 1;
         drawStickman(enemy.x, enemy.y, enemy.color, false, enemy.facing === 1, false, scale, enemy.isFlying, enemy.isShielded);
         
-        // Renderizar barra de vida para Jefes y para el enemigo con Escudo (Shielded)
         if (enemy.isBoss) {
             ctx.fillStyle = "#333"; ctx.fillRect(enemy.x, enemy.y - 15, 80, 8);
             ctx.fillStyle = "#ff0000"; ctx.fillRect(enemy.x, enemy.y - 15, (enemy.lives / enemy.maxLives) * 80, 8);
         } else if (enemy.isShielded) {
             ctx.fillStyle = "#222"; ctx.fillRect(enemy.x, enemy.y - 15, 45, 6);
-            ctx.fillStyle = "#00bfff"; // Barra azul para indicar vida del escudo protector
+            ctx.fillStyle = "#00bfff"; 
             ctx.fillRect(enemy.x, enemy.y - 15, (enemy.lives / enemy.maxLives) * 45, 6);
         }
     });
@@ -1050,8 +1096,10 @@ function draw() {
     ctx.strokeStyle = "rgba(255, 255, 255, 0.4)"; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.arc(mouseX, mouseY, 6, 0, Math.PI*2); ctx.stroke();
 
+    // Muestra visual del nombre del arma actual (cambia de forma individual con sus niveles)
+    const currentWeaponData = weaponsCatalog[player.currentWeapon];
     ctx.fillStyle = "#ffffff"; ctx.font = "20px Arial";
-    ctx.fillText(`Arma: ${player.currentWeapon.toUpperCase()}`, 25, canvas.height - 110);
+    ctx.fillText(`Arma: ${currentWeaponData.name.toUpperCase()} (Daño: ${currentWeaponData.damage})`, 25, canvas.height - 110);
     ctx.fillText(`Munición: ${player.isReloading ? "RECARGANDO..." : player.ammo + "/" + player.maxAmmo}`, 25, canvas.height - 80);
     ctx.font = "14px Arial"; ctx.fillStyle = "#aaa";
     ctx.fillText("Mantén 'O' quieto por 5s para recargar Overshield", 25, canvas.height - 60);
@@ -1072,42 +1120,42 @@ function draw() {
         ctx.font = "22px Arial";
         
         if (player.currentWeapon === "pistola") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 1. Pistola Base", canvas.width / 2, canvas.height * 0.32);
+            ctx.fillStyle = "#00ffcc"; ctx.fillText(`[EQUIPADA ACTUALMENTE] - 1. ${weaponsCatalog.pistola.name}`, canvas.width / 2, canvas.height * 0.32);
         } else {
-            ctx.fillStyle = "#ffffff"; ctx.fillText("[Presiona 1] Equipar Pistola Base (Ya Adquirida)", canvas.width / 2, canvas.height * 0.32);
+            ctx.fillStyle = "#ffffff"; ctx.fillText(`[Presiona 1] Equipar ${weaponsCatalog.pistola.name} (Ya Adquirida)`, canvas.width / 2, canvas.height * 0.32);
         }
 
         if (player.currentWeapon === "mp5") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 2. Subfusil MP5", canvas.width / 2, canvas.height * 0.41);
+            ctx.fillStyle = "#00ffcc"; ctx.fillText(`[EQUIPADA ACTUALMENTE] - 2. ${weaponsCatalog.mp5.name}`, canvas.width / 2, canvas.height * 0.41);
         } else if (weaponsCatalog.mp5.purchased) {
-            ctx.fillStyle = "#ffff00"; ctx.fillText("[Presiona 2] Equipar Subfusil MP5 (Ya Adquirido)", canvas.width / 2, canvas.height * 0.41);
+            ctx.fillStyle = "#ffff00"; ctx.fillText(`[Presiona 2] Equipar ${weaponsCatalog.mp5.name} (Ya Adquirido)`, canvas.width / 2, canvas.height * 0.41);
         } else {
             ctx.fillStyle = score >= weaponsCatalog.mp5.cost ? "#ffffff" : "#ff3333";
             ctx.fillText(`[Presiona 2] Comprar Subfusil MP5 - Costo: ${weaponsCatalog.mp5.cost} pts`, canvas.width / 2, canvas.height * 0.41);
         }
 
         if (player.currentWeapon === "duales") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 3. Pistolas Duales (Doble Armazón)", canvas.width / 2, canvas.height * 0.50);
+            ctx.fillStyle = "#00ffcc"; ctx.fillText(`[EQUIPADA ACTUALMENTE] - 3. ${weaponsCatalog.duales.name}`, canvas.width / 2, canvas.height * 0.50);
         } else if (weaponsCatalog.duales.purchased) {
-            ctx.fillStyle = "#ff00ff"; ctx.fillText("[Presiona 3] Equipar Pistolas Duales (Ya Adquiridas)", canvas.width / 2, canvas.height * 0.50);
+            ctx.fillStyle = "#ff00ff"; ctx.fillText(`[Presiona 3] Equipar ${weaponsCatalog.duales.name} (Ya Adquiridas)`, canvas.width / 2, canvas.height * 0.50);
         } else {
             ctx.fillStyle = score >= weaponsCatalog.duales.cost ? "#ffffff" : "#ff3333";
             ctx.fillText(`[Presiona 3] Comprar Pistolas Duales - Costo: ${weaponsCatalog.duales.cost} pts`, canvas.width / 2, canvas.height * 0.50);
         }
 
         if (player.currentWeapon === "rifle") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 4. Rifle Pesado", canvas.width / 2, canvas.height * 0.59);
+            ctx.fillStyle = "#00ffcc"; ctx.fillText(`[EQUIPADA ACTUALMENTE] - 4. ${weaponsCatalog.rifle.name}`, canvas.width / 2, canvas.height * 0.59);
         } else if (weaponsCatalog.rifle.purchased) {
-            ctx.fillStyle = "#00bfff"; ctx.fillText("[Presiona 4] Equipar Rifle Pesado (Ya Adquirido)", canvas.width / 2, canvas.height * 0.59);
+            ctx.fillStyle = "#00bfff"; ctx.fillText(`[Presiona 4] Equipar ${weaponsCatalog.rifle.name} (Ya Adquirido)`, canvas.width / 2, canvas.height * 0.59);
         } else {
             ctx.fillStyle = score >= weaponsCatalog.rifle.cost ? "#ffffff" : "#ff3333";
             ctx.fillText(`[Presiona 4] Comprar Rifle Pesado - Costo: ${weaponsCatalog.rifle.cost} pts`, canvas.width / 2, canvas.height * 0.59);
         }
 
         if (player.currentWeapon === "galil") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 5. Rifle Galil AR", canvas.width / 2, canvas.height * 0.68);
+            ctx.fillStyle = "#00ffcc"; ctx.fillText(`[EQUIPADA ACTUALMENTE] - 5. ${weaponsCatalog.galil.name}`, canvas.width / 2, canvas.height * 0.68);
         } else if (weaponsCatalog.galil.purchased) {
-            ctx.fillStyle = "#00ff66"; ctx.fillText("[Presiona 5] Equipar Rifle Galil AR (Ya Adquirido)", canvas.width / 2, canvas.height * 0.68);
+            ctx.fillStyle = "#00ff66"; ctx.fillText(`[Presiona 5] Equipar ${weaponsCatalog.galil.name} (Ya Adquirido)`, canvas.width / 2, canvas.height * 0.68);
         } else {
             ctx.fillStyle = score >= weaponsCatalog.galil.cost ? "#ffffff" : "#ff3333";
             ctx.fillText(`[Presiona 5] Comprar Rifle Galil AR - Costo: ${weaponsCatalog.galil.cost} pts`, canvas.width / 2, canvas.height * 0.68);
