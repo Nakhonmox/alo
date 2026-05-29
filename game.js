@@ -64,7 +64,7 @@ const weaponsCatalog = {
 };
 
 // ==========================================
-// SISTEMA DEL CÓDIGO KONAMI
+// SISTEMA DEL CÓDIGO KONAMI (CORREGIDO)
 // ==========================================
 const konamiCode = [
     "arrowup", "arrowup", 
@@ -203,23 +203,24 @@ window.addEventListener("click", e => {
     }
 });
 
-// Tienda interactiva y Lectura de Teclas
+// Captura de entradas generales y Tienda interactiva
 window.addEventListener("keydown", e => {
     if (gameState !== "playing") return; 
     
     const key = e.key.toLowerCase();
 
-    // Verificación del código Konami (Solo activo durante la partida)
-    if (!isRoundBreak) {
+    // FILTRO INTERNO COMPLETO PARA EL CÓDIGO KONAMI
+    // Solo procesamos si la tecla pertenece a la secuencia para evitar que la 'A' o 'D' de moverse rompan el combo
+    if (!isRoundBreak && konamiCode.includes(key)) {
         if (key === konamiCode[konamiIndex]) {
             konamiIndex++;
             if (konamiIndex === konamiCode.length) {
                 score += 10000;
                 scoreEl.innerText = score;
-                konamiIndex = 0; // Reiniciar para poder usarlo de nuevo
+                konamiIndex = 0; // Reiniciar limpiamente
             }
         } else {
-            // Si se equivoca, se comprueba si la tecla presionada era al menos el inicio de la secuencia (Arriba)
+            // Si presionas una tecla Konami errónea (ej: presionar abajo cuando tocaba izquierda), reinicia
             konamiIndex = (key === konamiCode[0]) ? 1 : 0;
         }
     }
@@ -279,11 +280,20 @@ window.addEventListener("keydown", e => {
         }
         return;
     }
-    keys[e.key === " " ? "space" : key] = true;
+    
+    // Ignoramos las flechas del teclado en las acciones de movimiento tradicionales del stickman
+    if (!key.startsWith("arrow")) {
+        keys[e.key === " " ? "space" : key] = true;
+    }
 });
 
 window.addEventListener("keyup", e => {
-    if (gameState === "playing") keys[e.key === " " ? "space" : e.key.toLowerCase()] = false;
+    if (gameState === "playing") {
+        const key = e.key.toLowerCase();
+        if (!key.startsWith("arrow")) {
+            keys[e.key === " " ? "space" : key] = false;
+        }
+    }
 });
 
 function equipWeapon(weaponId) {
