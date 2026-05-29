@@ -54,12 +54,13 @@ const permanentUpgrades = {
     bonusMaxAmmo: 0
 };
 
-// ESTRUCTURA COMPLETA DE ARMAS DE LA TIENDA
+// ESTRUCTURA COMPLETA DE ARMAS DE LA TIENDA (Galil SAR Agregada)
 const weaponsCatalog = {
     pistola: { name: "Pistola Base", baseAmmo: 9, cooldown: 400, damage: 1, cost: 0, purchased: true, color: "#ffffff" },
     mp5:     { name: "Subfusil MP5", baseAmmo: 20, cooldown: 130, damage: 1, cost: 1000, purchased: false, color: "#ffff00" },
     duales:  { name: "Pistolas Duales", baseAmmo: 18, cooldown: 220, damage: 1, cost: 2000, purchased: false, color: "#ff00ff" },
-    rifle:   { name: "Rifle Pesado", baseAmmo: 5, cooldown: 800, damage: 2, cost: 3000, purchased: false, color: "#00bfff" }
+    rifle:   { name: "Rifle Pesado", baseAmmo: 5, cooldown: 800, damage: 2, cost: 3000, purchased: false, color: "#00bfff" },
+    galil:   { name: "Galil SAR", baseAmmo: 25, cooldown: 130, damage: 2, cost: 5000, purchased: false, color: "#4caf50" }
 };
 
 function getTotalEnemiesForRound(round) {
@@ -190,7 +191,7 @@ window.addEventListener("click", e => {
     }
 });
 
-// Tienda interactiva
+// Tienda interactiva (Controles de Galil agregados)
 window.addEventListener("keydown", e => {
     if (gameState !== "playing" || isRoundBreak) return; 
     
@@ -235,6 +236,17 @@ window.addEventListener("keydown", e => {
                 showShop = false; isPaused = false;
             }
         }
+        if (key === "5") {
+            if (weaponsCatalog.galil.purchased) {
+                equipWeapon("galil");
+                showShop = false; isPaused = false;
+            } else if (score >= weaponsCatalog.galil.cost) {
+                score -= weaponsCatalog.galil.cost; scoreEl.innerText = score;
+                weaponsCatalog.galil.purchased = true;
+                equipWeapon("galil");
+                showShop = false; isPaused = false;
+            }
+        }
         return;
     }
     keys[e.key === " " ? "space" : key] = true;
@@ -275,11 +287,13 @@ window.addEventListener("keydown", e => {
                 bulletSpreadY = (player.ammo % 2 === 0) ? -6 : 6;
             }
 
+            const isHeavyBullet = player.currentWeapon === "rifle" || player.currentWeapon === "galil";
+
             bullets.push({
                 x: originX,
                 y: originY + bulletSpreadY,
-                width: player.currentWeapon === "rifle" ? 18 : 10, 
-                height: player.currentWeapon === "rifle" ? 6 : 4,
+                width: isHeavyBullet ? 18 : 10, 
+                height: isHeavyBullet ? 6 : 4,
                 speedX: Math.cos(angle) * 18,
                 speedY: Math.sin(angle) * 18,
                 color: weaponData.color,
@@ -295,6 +309,7 @@ function startReload() {
     if (player.currentWeapon === "mp5") player.reloadTimer = 60;
     else if (player.currentWeapon === "duales") player.reloadTimer = 70;
     else if (player.currentWeapon === "rifle") player.reloadTimer = 100;
+    else if (player.currentWeapon === "galil") player.reloadTimer = 90;
     else player.reloadTimer = 80;
 }
 
@@ -650,47 +665,46 @@ function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 
             ctx.rotate(angle);
             ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(20, 0); ctx.stroke();
             ctx.strokeStyle = "#ffffff"; 
-            ctx.lineWidth = player.currentWeapon === "mp5" ? 5 : (player.currentWeapon === "rifle" ? 6 : 3);
-            ctx.beginPath(); ctx.moveTo(20, 0); ctx.lineTo(player.currentWeapon === "rifle" ? 38 : 30, 0); ctx.stroke();
+            
+            // Grosor/Longitud visual de los rifles y subfusiles
+            if (player.currentWeapon === "mp5") ctx.lineWidth = 5;
+            else if (player.currentWeapon === "rifle" || player.currentWeapon === "galil") ctx.lineWidth = 6;
+            else ctx.lineWidth = 3;
+            
+            ctx.beginPath(); 
+            ctx.moveTo(20, 0); 
+            ctx.lineTo((player.currentWeapon === "rifle" || player.currentWeapon === "galil") ? 38 : 30, 0); 
+            ctx.stroke();
             ctx.restore();
         }
     } else {
-        // ASIGNACIÓN DE KATANA: Solo a enemigos normales pequeños (Rojos, escala 1, terrestres)
+        // ASIGNACIÓN DE KATANA
         if (color === "#ff3333" && scale === 1 && !isFlying) {
             ctx.save();
             ctx.translate(cx, y + 35);
             
-            // Determinar la dirección de ataque en base al movimiento del stickman
             let dir = facingRight ? 1 : -1;
-            
-            // Rotar el brazo/arma en un ángulo diagonal frontal y añadir un leve bamboleo de animación
             let angleBase = dir === 1 ? -Math.PI / 5 : -Math.PI * 4 / 5;
             let wobble = Math.sin(Date.now() / 100) * 0.1;
             ctx.rotate(angleBase + wobble);
 
-            // Brazo articulado del enemigo
             ctx.strokeStyle = color; ctx.lineWidth = 3;
             ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(15, 0); ctx.stroke();
 
-            // Mango (Tsuka) de la Katana - Marrón oscuro
             ctx.strokeStyle = "#5a3825"; ctx.lineWidth = 4;
             ctx.beginPath(); ctx.moveTo(15, 0); ctx.lineTo(23, 0); ctx.stroke();
 
-            // Guardamano (Tsuba) - Color dorado metálico
             ctx.strokeStyle = "#e5b800"; ctx.lineWidth = 5;
             ctx.beginPath(); ctx.moveTo(23, -4); ctx.lineTo(23, 4); ctx.stroke();
 
-            // Hoja (Nagasa) de la katana - Color plateado/gris
             ctx.strokeStyle = "#cccccc"; ctx.lineWidth = 2.5;
             ctx.beginPath(); ctx.moveTo(23, 0); ctx.lineTo(50, 0); ctx.stroke();
 
-            // Línea de brillo en el filo - Blanco puro
             ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1;
             ctx.beginPath(); ctx.moveTo(25, -1); ctx.lineTo(49, -1); ctx.stroke();
 
             ctx.restore();
         } else {
-            // Brazos normales por defecto para Jefes u otros tipos de enemigos
             let dir = facingRight ? 1 : -1;
             ctx.beginPath(); ctx.moveTo(cx, y + 35); ctx.lineTo(cx + (15 * scale * dir), y + 45); ctx.stroke();
         }
@@ -768,7 +782,7 @@ function draw() {
         ctx.strokeStyle = "#7b00b8"; ctx.lineWidth = 3;
         for(let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc(dragon.x + 160 + (i*30), dragon.y + 200 + (i*20), 25, 0, Math.PI); ctx.stroke(); }
         ctx.fillStyle = "#6a009c";
-        ctx.beginPath(); ctx.moveTo(dragon.x + 140, dragon.y + 230); ctx.quadraticCurveTo(dragon.x + 60, dragon.y + 150, dragon.x + 40, dragon.y + 100); ctx.lineTo(dragon.x - 20, dragon.y + 80); ctx.lineTo(dragon.x + 30, dragon.y + 130); ctx.lineTo(dragon.x + 100, dragon.y + 160); ctx.quadraticCurveTo(dragon.x + 110, dragon.y + 200, dragon.x + 140, dragon.y + 250); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(dragon.x + 140, dragon.y + 230); ctx.quadraticCurveTo(dragon.x + 60, dragon.y + 150, dragon.x + 40, dragon.y + 100); ctx.lineTo(dragon.x - 20, dragon.y + 80); ctx.lineTo(dragon.x + 30, dragon.y + 130); ctx.lineTo(dragon.x + 100, dragon.y + 160); quadraticCurveTo(dragon.x + 110, dragon.y + 200, dragon.x + 140, dragon.y + 250); ctx.closePath(); ctx.fill();
         ctx.fillStyle = "#4a0072"; ctx.beginPath(); ctx.moveTo(dragon.x + 30, dragon.y + 130); ctx.lineTo(dragon.x - 5, dragon.y + 115); ctx.lineTo(dragon.x + 40, dragon.y + 150); ctx.closePath(); ctx.fill();
         ctx.fillStyle = "#9900ff"; ctx.beginPath(); ctx.moveTo(dragon.x + 40, dragon.y + 90); ctx.lineTo(dragon.x + 10, dragon.y + 40); ctx.lineTo(dragon.x + 60, dragon.y + 95); ctx.closePath(); ctx.fill();
         ctx.fillStyle = "#ffff00"; ctx.shadowColor = "#ffea00"; ctx.shadowBlur = 15;
@@ -856,54 +870,64 @@ function draw() {
     }
 
     // ==========================================
-    // RENDERIZADO CORREGIDO DE LA TIENDA DE ARMAS
+    // RENDERIZADO CORREGIDO DE LA TIENDA DE ARMAS (Galil SAR Agregada)
     // ==========================================
     if (showShop) {
         ctx.fillStyle = "rgba(10, 10, 20, 0.95)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#00ffcc"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
-        ctx.fillText("TIENDA & ARMERÍA (Juego Pausado)", canvas.width / 2, canvas.height * 0.15);
-        ctx.fillStyle = "#ffffff"; ctx.font = "24px Arial"; ctx.fillText(`Tu Puntuación: ${score} pts`, canvas.width / 2, canvas.height * 0.22);
+        ctx.fillText("TIENDA & ARMERÍA (Juego Pausado)", canvas.width / 2, canvas.height * 0.12);
+        ctx.fillStyle = "#ffffff"; ctx.font = "24px Arial"; ctx.fillText(`Tu Puntuación: ${score} pts`, canvas.width / 2, canvas.height * 0.18);
         
         ctx.font = "22px Arial";
         
         // 1. Pistola Base
         if (player.currentWeapon === "pistola") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 1. Pistola Base", canvas.width / 2, canvas.height * 0.38);
+            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 1. Pistola Base", canvas.width / 2, canvas.height * 0.32);
         } else {
-            ctx.fillStyle = "#ffffff"; ctx.fillText("[Presiona 1] Equipar Pistola Base (Ya Adquirida)", canvas.width / 2, canvas.height * 0.38);
+            ctx.fillStyle = "#ffffff"; ctx.fillText("[Presiona 1] Equipar Pistola Base (Ya Adquirida)", canvas.width / 2, canvas.height * 0.32);
         }
 
         // 2. Subfusil MP5
         if (player.currentWeapon === "mp5") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 2. Subfusil MP5", canvas.width / 2, canvas.height * 0.48);
+            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 2. Subfusil MP5", canvas.width / 2, canvas.height * 0.42);
         } else if (weaponsCatalog.mp5.purchased) {
-            ctx.fillStyle = "#ffff00"; ctx.fillText("[Presiona 2] Equipar Subfusil MP5 (Ya Adquirido)", canvas.width / 2, canvas.height * 0.48);
+            ctx.fillStyle = "#ffff00"; ctx.fillText("[Presiona 2] Equipar Subfusil MP5 (Ya Adquirido)", canvas.width / 2, canvas.height * 0.42);
         } else {
             ctx.fillStyle = score >= weaponsCatalog.mp5.cost ? "#ffffff" : "#ff3333";
-            ctx.fillText(`[Presiona 2] Comprar Subfusil MP5 - Costo: ${weaponsCatalog.mp5.cost} pts`, canvas.width / 2, canvas.height * 0.48);
+            ctx.fillText(`[Presiona 2] Comprar Subfusil MP5 - Costo: ${weaponsCatalog.mp5.cost} pts`, canvas.width / 2, canvas.height * 0.42);
         }
 
         // 3. Pistolas Duales
         if (player.currentWeapon === "duales") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 3. Pistolas Duales (Doble Brazo)", canvas.width / 2, canvas.height * 0.58);
+            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 3. Pistolas Duales (Doble Brazo)", canvas.width / 2, canvas.height * 0.52);
         } else if (weaponsCatalog.duales.purchased) {
-            ctx.fillStyle = "#ff00ff"; ctx.fillText("[Presiona 3] Equipar Pistolas Duales (Ya Adquiridas)", canvas.width / 2, canvas.height * 0.58);
+            ctx.fillStyle = "#ff00ff"; ctx.fillText("[Presiona 3] Equipar Pistolas Duales (Ya Adquiridas)", canvas.width / 2, canvas.height * 0.52);
         } else {
             ctx.fillStyle = score >= weaponsCatalog.duales.cost ? "#ffffff" : "#ff3333";
-            ctx.fillText(`[Presiona 3] Comprar Pistolas Duales - Costo: ${weaponsCatalog.duales.cost} pts`, canvas.width / 2, canvas.height * 0.58);
+            ctx.fillText(`[Presiona 3] Comprar Pistolas Duales - Costo: ${weaponsCatalog.duales.cost} pts`, canvas.width / 2, canvas.height * 0.52);
         }
 
         // 4. Rifle Pesado
         if (player.currentWeapon === "rifle") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 4. Rifle Pesado", canvas.width / 2, canvas.height * 0.68);
+            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 4. Rifle Pesado", canvas.width / 2, canvas.height * 0.62);
         } else if (weaponsCatalog.rifle.purchased) {
-            ctx.fillStyle = "#00bfff"; ctx.fillText("[Presiona 4] Equipar Rifle Pesado (Ya Adquirido)", canvas.width / 2, canvas.height * 0.68);
+            ctx.fillStyle = "#00bfff"; ctx.fillText("[Presiona 4] Equipar Rifle Pesado (Ya Adquirido)", canvas.width / 2, canvas.height * 0.62);
         } else {
             ctx.fillStyle = score >= weaponsCatalog.rifle.cost ? "#ffffff" : "#ff3333";
-            ctx.fillText(`[Presiona 4] Comprar Rifle Pesado - Costo: ${weaponsCatalog.rifle.cost} pts`, canvas.width / 2, canvas.height * 0.68);
+            ctx.fillText(`[Presiona 4] Comprar Rifle Pesado - Costo: ${weaponsCatalog.rifle.cost} pts`, canvas.width / 2, canvas.height * 0.62);
+        }
+
+        // 5. Galil SAR (Nueva)
+        if (player.currentWeapon === "galil") {
+            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 5. Rifle Automático Galil SAR", canvas.width / 2, canvas.height * 0.72);
+        } else if (weaponsCatalog.galil.purchased) {
+            ctx.fillStyle = "#4caf50"; ctx.fillText("[Presiona 5] Equipar Galil SAR (Ya Adquirido)", canvas.width / 2, canvas.height * 0.72);
+        } else {
+            ctx.fillStyle = score >= weaponsCatalog.galil.cost ? "#ffffff" : "#ff3333";
+            ctx.fillText(`[Presiona 5] Comprar Galil SAR - Costo: ${weaponsCatalog.galil.cost} pts`, canvas.width / 2, canvas.height * 0.72);
         }
         
-        ctx.fillStyle = "#aaa"; ctx.font = "18px Arial"; ctx.fillText("Presiona 'T' para cerrar el menú y volver al juego", canvas.width / 2, canvas.height * 0.82);
+        ctx.fillStyle = "#aaa"; ctx.font = "18px Arial"; ctx.fillText("Presiona 'T' para cerrar el menú y volver al juego", canvas.width / 2, canvas.height * 0.85);
         ctx.textAlign = "left";
     }
 }
