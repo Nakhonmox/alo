@@ -55,12 +55,13 @@ const permanentUpgrades = {
     bonusMaxAmmo: 0
 };
 
-// ESTRUCTURA COMPLETA DE ARMAS DE LA TIENDA
+// ESTRUCTURA COMPLETA DE ARMAS DE LA TIENDA (¡Galil añadida de vuelta!)
 const weaponsCatalog = {
     pistola: { name: "Pistola Base", baseAmmo: 9, cooldown: 400, damage: 1, cost: 0, purchased: true, color: "#ffffff" },
     mp5:     { name: "Subfusil MP5", baseAmmo: 20, cooldown: 130, damage: 1, cost: 1000, purchased: false, color: "#ffff00" },
     duales:  { name: "Pistolas Duales", baseAmmo: 18, cooldown: 220, damage: 1, cost: 2000, purchased: false, color: "#ff00ff" },
-    rifle:   { name: "Rifle Pesado", baseAmmo: 5, cooldown: 800, damage: 2, cost: 3000, purchased: false, color: "#00bfff" }
+    rifle:   { name: "Rifle Pesado", baseAmmo: 5, cooldown: 800, damage: 2, cost: 3000, purchased: false, color: "#00bfff" },
+    galil:   { name: "Rifle Galil AR", baseAmmo: 25, cooldown: 180, damage: 1.5, cost: 4000, purchased: false, color: "#00ff66" }
 };
 
 function getTotalEnemiesForRound(round) {
@@ -191,21 +192,20 @@ window.addEventListener("click", e => {
     }
 });
 
-// Control e Interacción de Teclado (Menús, Tienda, Cheats y Movimiento)
+// Control de Menús, Tienda, Cheats y Movimiento
 window.addEventListener("keydown", e => {
     if (gameState !== "playing" || isRoundBreak) return; 
     
     const key = e.key.toLowerCase();
 
-    // 1. CONTROL EXCLUSIVO DEL MENÚ DE TRUCOS (Tecla 'M')
+    // CONTROL DEL MENÚ DE TRUCOS (Tecla 'M')
     if (key === "m") {
         showCheats = !showCheats;
-        showShop = false; // Cerrar la tienda si estaba abierta
+        showShop = false; 
         isPaused = showCheats;
         return;
     }
 
-    // Si el menú de trucos está abierto, capturar sus opciones y bloquear el resto del juego
     if (showCheats) {
         if (key === "1") {
             score += 10000; 
@@ -214,7 +214,7 @@ window.addEventListener("keydown", e => {
         return;
     }
 
-    // 2. CONTROL DEL MENÚ DE LA TIENDA (Tecla 'T')
+    // CONTROL DEL MENÚ DE LA TIENDA (Tecla 'T')
     if (key === "t") { 
         showShop = !showShop; 
         isPaused = showShop; 
@@ -259,10 +259,20 @@ window.addEventListener("keydown", e => {
                 showShop = false; isPaused = false;
             }
         }
+        if (key === "5") {
+            if (weaponsCatalog.galil.purchased) {
+                equipWeapon("galil");
+                showShop = false; isPaused = false;
+            } else if (score >= weaponsCatalog.galil.cost) {
+                score -= weaponsCatalog.galil.cost; scoreEl.innerText = score;
+                weaponsCatalog.galil.purchased = true;
+                equipWeapon("galil");
+                showShop = false; isPaused = false;
+            }
+        }
         return;
     }
 
-    // Registrar teclas de movimiento normales si no hay menús abiertos
     keys[e.key === " " ? "space" : key] = true;
 });
 
@@ -304,8 +314,8 @@ window.addEventListener("keydown", e => {
             bullets.push({
                 x: originX,
                 y: originY + bulletSpreadY,
-                width: player.currentWeapon === "rifle" ? 18 : 10, 
-                height: player.currentWeapon === "rifle" ? 6 : 4,
+                width: (player.currentWeapon === "rifle" || player.currentWeapon === "galil") ? 18 : 10, 
+                height: (player.currentWeapon === "rifle" || player.currentWeapon === "galil") ? 6 : 4,
                 speedX: Math.cos(angle) * 18,
                 speedY: Math.sin(angle) * 18,
                 color: weaponData.color,
@@ -321,6 +331,7 @@ function startReload() {
     if (player.currentWeapon === "mp5") player.reloadTimer = 60;
     else if (player.currentWeapon === "duales") player.reloadTimer = 70;
     else if (player.currentWeapon === "rifle") player.reloadTimer = 100;
+    else if (player.currentWeapon === "galil") player.reloadTimer = 90;
     else player.reloadTimer = 80;
 }
 
@@ -677,7 +688,7 @@ function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 
             ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(20, 0); ctx.stroke();
             ctx.strokeStyle = "#ffffff"; 
             ctx.lineWidth = player.currentWeapon === "mp5" ? 5 : (player.currentWeapon === "rifle" ? 6 : 3);
-            ctx.beginPath(); ctx.moveTo(20, 0); ctx.lineTo(player.currentWeapon === "rifle" ? 38 : 30, 0); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(20, 0); ctx.lineTo((player.currentWeapon === "rifle" || player.currentWeapon === "galil") ? 38 : 30, 0); ctx.stroke();
             ctx.restore();
         }
     } else {
@@ -873,51 +884,61 @@ function draw() {
     }
 
     // ==========================================
-    // RENDEREADO DE LA TIENDA DE ARMAS
+    // RENDEREADO DE LA TIENDA DE ARMAS (Con Galil)
     // ==========================================
     if (showShop) {
         ctx.fillStyle = "rgba(10, 10, 20, 0.95)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#00ffcc"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
-        ctx.fillText("TIENDA & ARMERÍA (Juego Pausado)", canvas.width / 2, canvas.height * 0.15);
-        ctx.fillStyle = "#ffffff"; ctx.font = "24px Arial"; ctx.fillText(`Tu Puntuación: ${score} pts`, canvas.width / 2, canvas.height * 0.22);
+        ctx.fillText("TIENDA & ARMERÍA (Juego Pausado)", canvas.width / 2, canvas.height * 0.12);
+        ctx.fillStyle = "#ffffff"; ctx.font = "24px Arial"; ctx.fillText(`Tu Puntuación: ${score} pts`, canvas.width / 2, canvas.height * 0.18);
         
         ctx.font = "22px Arial";
         
         // 1. Pistola Base
         if (player.currentWeapon === "pistola") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 1. Pistola Base", canvas.width / 2, canvas.height * 0.38);
+            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 1. Pistola Base", canvas.width / 2, canvas.height * 0.32);
         } else {
-            ctx.fillStyle = "#ffffff"; ctx.fillText("[Presiona 1] Equipar Pistola Base (Ya Adquirida)", canvas.width / 2, canvas.height * 0.38);
+            ctx.fillStyle = "#ffffff"; ctx.fillText("[Presiona 1] Equipar Pistola Base (Ya Adquirida)", canvas.width / 2, canvas.height * 0.32);
         }
 
         // 2. Subfusil MP5
         if (player.currentWeapon === "mp5") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 2. Subfusil MP5", canvas.width / 2, canvas.height * 0.48);
+            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 2. Subfusil MP5", canvas.width / 2, canvas.height * 0.41);
         } else if (weaponsCatalog.mp5.purchased) {
-            ctx.fillStyle = "#ffff00"; ctx.fillText("[Presiona 2] Equipar Subfusil MP5 (Ya Adquirido)", canvas.width / 2, canvas.height * 0.48);
+            ctx.fillStyle = "#ffff00"; ctx.fillText("[Presiona 2] Equipar Subfusil MP5 (Ya Adquirido)", canvas.width / 2, canvas.height * 0.41);
         } else {
             ctx.fillStyle = score >= weaponsCatalog.mp5.cost ? "#ffffff" : "#ff3333";
-            ctx.fillText(`[Presiona 2] Comprar Subfusil MP5 - Costo: ${weaponsCatalog.mp5.cost} pts`, canvas.width / 2, canvas.height * 0.48);
+            ctx.fillText(`[Presiona 2] Comprar Subfusil MP5 - Costo: ${weaponsCatalog.mp5.cost} pts`, canvas.width / 2, canvas.height * 0.41);
         }
 
         // 3. Pistolas Duales
         if (player.currentWeapon === "duales") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 3. Pistolas Duales (Doble Brazo)", canvas.width / 2, canvas.height * 0.58);
+            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 3. Pistolas Duales (Doble Brazo)", canvas.width / 2, canvas.height * 0.50);
         } else if (weaponsCatalog.duales.purchased) {
-            ctx.fillStyle = "#ff00ff"; ctx.fillText("[Presiona 3] Equipar Pistolas Duales (Ya Adquiridas)", canvas.width / 2, canvas.height * 0.58);
+            ctx.fillStyle = "#ff00ff"; ctx.fillText("[Presiona 3] Equipar Pistolas Duales (Ya Adquiridas)", canvas.width / 2, canvas.height * 0.50);
         } else {
             ctx.fillStyle = score >= weaponsCatalog.duales.cost ? "#ffffff" : "#ff3333";
-            ctx.fillText(`[Presiona 3] Comprar Pistolas Duales - Costo: ${weaponsCatalog.duales.cost} pts`, canvas.width / 2, canvas.height * 0.58);
+            ctx.fillText(`[Presiona 3] Comprar Pistolas Duales - Costo: ${weaponsCatalog.duales.cost} pts`, canvas.width / 2, canvas.height * 0.50);
         }
 
         // 4. Rifle Pesado
         if (player.currentWeapon === "rifle") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 4. Rifle Pesado", canvas.width / 2, canvas.height * 0.68);
+            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 4. Rifle Pesado", canvas.width / 2, canvas.height * 0.59);
         } else if (weaponsCatalog.rifle.purchased) {
-            ctx.fillStyle = "#00bfff"; ctx.fillText("[Presiona 4] Equipar Rifle Pesado (Ya Adquirido)", canvas.width / 2, canvas.height * 0.68);
+            ctx.fillStyle = "#00bfff"; ctx.fillText("[Presiona 4] Equipar Rifle Pesado (Ya Adquirido)", canvas.width / 2, canvas.height * 0.59);
         } else {
             ctx.fillStyle = score >= weaponsCatalog.rifle.cost ? "#ffffff" : "#ff3333";
-            ctx.fillText(`[Presiona 4] Comprar Rifle Pesado - Costo: ${weaponsCatalog.rifle.cost} pts`, canvas.width / 2, canvas.height * 0.68);
+            ctx.fillText(`[Presiona 4] Comprar Rifle Pesado - Costo: ${weaponsCatalog.rifle.cost} pts`, canvas.width / 2, canvas.height * 0.59);
+        }
+
+        // 5. Rifle Galil
+        if (player.currentWeapon === "galil") {
+            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 5. Rifle Galil AR", canvas.width / 2, canvas.height * 0.68);
+        } else if (weaponsCatalog.galil.purchased) {
+            ctx.fillStyle = "#00ff66"; ctx.fillText("[Presiona 5] Equipar Rifle Galil AR (Ya Adquirido)", canvas.width / 2, canvas.height * 0.68);
+        } else {
+            ctx.fillStyle = score >= weaponsCatalog.galil.cost ? "#ffffff" : "#ff3333";
+            ctx.fillText(`[Presiona 5] Comprar Rifle Galil AR - Costo: ${weaponsCatalog.galil.cost} pts`, canvas.width / 2, canvas.height * 0.68);
         }
         
         ctx.fillStyle = "#aaa"; ctx.font = "18px Arial"; ctx.fillText("Presiona 'T' para cerrar el menú y volver al juego", canvas.width / 2, canvas.height * 0.82);
