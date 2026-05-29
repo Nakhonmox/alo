@@ -61,7 +61,7 @@ const weaponsCatalog = {
     mp5:     { name: "Subfusil MP5", baseAmmo: 20, cooldown: 130, damage: 1, cost: 1000, purchased: false, color: "#ffff00" },
     duales:  { name: "Pistolas Duales", baseAmmo: 18, cooldown: 220, damage: 1, cost: 2000, purchased: false, color: "#ff00ff" },
     rifle:   { name: "Rifle Pesado", baseAmmo: 5, cooldown: 800, damage: 2, cost: 3000, purchased: false, color: "#00bfff" },
-    galil:   { name: "Rifle Galil AR", baseAmmo: 25, cooldown: 180, damage: 1.5, cost: 4000, purchased: false, color: "#00ff66" }
+    galil:   { name: "Rifle Galil AR", baseAmmo: 25, cooldown: 180, damage: 2, cost: 4000, purchased: false, color: "#00ff66" }
 };
 
 function getTotalEnemiesForRound(round) {
