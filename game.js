@@ -55,7 +55,7 @@ const permanentUpgrades = {
     bonusMaxAmmo: 0
 };
 
-// ESTRUCTURA COMPLETA DE ARMAS DE LA TIENDA (¡Galil añadida de vuelta!)
+// ESTRUCTURA COMPLETA DE ARMAS DE LA TIENDA
 const weaponsCatalog = {
     pistola: { name: "Pistola Base", baseAmmo: 9, cooldown: 400, damage: 1, cost: 0, purchased: true, color: "#ffffff" },
     mp5:     { name: "Subfusil MP5", baseAmmo: 20, cooldown: 130, damage: 1, cost: 1000, purchased: false, color: "#ffff00" },
@@ -79,6 +79,22 @@ function startNextRound() {
     bullets = [];
     enemyBullets = [];
     grenades = [];
+    
+    // Reiniciar los intervalos de spawn para aplicar los nuevos tiempos dinámicos de la ronda
+    clearInterval(spawnEnemyInterval);
+    clearInterval(spawnFlyingInterval);
+    
+    let baseEnemyTime = 2500;
+    let baseFlyingTime = 4000;
+    
+    if (currentRound > 5) {
+        let dynamicReduction = (currentRound - 5) * 500;
+        baseEnemyTime = Math.max(500, 2500 - dynamicReduction);
+        baseFlyingTime = Math.max(800, 4000 - dynamicReduction);
+    }
+    
+    spawnEnemyInterval = setInterval(spawnEnemy, baseEnemyTime);
+    spawnFlyingInterval = setInterval(spawnFlyingEnemy, baseFlyingTime);
 }
 
 function updatePlayerStats() {
@@ -89,7 +105,6 @@ function updatePlayerStats() {
     player.maxAmmo = currentWeaponData.baseAmmo + permanentUpgrades.bonusMaxAmmo;
     player.shootCooldown = currentWeaponData.cooldown;
 }
-// ==========================================
 
 // SISTEMA DE OVERSHIELD
 const shieldSystem = {
@@ -143,10 +158,22 @@ const platforms = [
     { x: canvas.width * 0.55, y: floorY - 500, width: 250, height: 15 }
 ];
 
-// Fondo
+// Fondo (Estrellas y Decoraciones de Relleno)
 const stars = [];
 for (let i = 0; i < 60; i++) {
     stars.push({ x: Math.random() * canvas.width, y: Math.random() * (canvas.height * 0.6), size: Math.random() * 2 });
+}
+
+const backgroundDecorations = [];
+for (let i = 0; i < 8; i++) {
+    backgroundDecorations.push({
+        x: Math.random() * (canvas.width - 60) + 30,
+        y: floorY - 35,
+        width: 25,
+        height: 35,
+        color: Math.random() > 0.4 ? "#4a4a5a" : "#2e5c1e", // Barril normal o tóxico de adorno
+        type: Math.random() > 0.4 ? "normal" : "toxic"
+    });
 }
 
 window.addEventListener("mousemove", e => {
@@ -198,7 +225,6 @@ window.addEventListener("keydown", e => {
     
     const key = e.key.toLowerCase();
 
-    // CONTROL DEL MENÚ DE TRUCOS (Tecla 'M')
     if (key === "m") {
         showCheats = !showCheats;
         showShop = false; 
@@ -214,7 +240,6 @@ window.addEventListener("keydown", e => {
         return;
     }
 
-    // CONTROL DEL MENÚ DE LA TIENDA (Tecla 'T')
     if (key === "t") { 
         showShop = !showShop; 
         isPaused = showShop; 
@@ -390,7 +415,7 @@ function spawnEnemy() {
         lastGrenade: Date.now() + Math.random() * 2000
     });
 }
-setInterval(spawnEnemy, 2500); 
+let spawnEnemyInterval = setInterval(spawnEnemy, 2500); 
 
 function sampleFlyingSpawn() {
     let maxForThisRound = getTotalEnemiesForRound(currentRound);
@@ -413,7 +438,7 @@ function spawnFlyingEnemy() {
         lives: 1 
     });
 }
-setInterval(spawnFlyingEnemy, 4000);
+let spawnFlyingInterval = setInterval(spawnFlyingEnemy, 4000);
 
 function spawnBoss() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return; 
@@ -519,7 +544,28 @@ function update() {
     bullets.forEach((bullet, bIndex) => {
         bullet.x += bullet.speedX;
         bullet.y += bullet.speedY;
-        if (bullet.x > canvas.width || bullet.x < 0 || bullet.y > canvas.height || bullet.y < 0) bullets.splice(bIndex, 1);
+        
+        // Colisión limpia contra el dragón para evitar desbordamiento o fallos de lectura
+        if (dragonSpawned && dragon) {
+            if (bullet.x > dragon.x && bullet.x < dragon.x + dragon.width &&
+                bullet.y > dragon.y && bullet.y < dragon.y + dragon.height) {
+                
+                dragon.lives -= bullet.damage;
+                bullets.splice(bIndex, 1);
+                
+                if (dragon.lives <= 0) {
+                    score += 1000; 
+                    scoreEl.innerText = score;
+                    dragon = null;
+                    dragonSpawned = false;
+                }
+                return; 
+            }
+        }
+
+        if (bullet.x > canvas.width || bullet.x < 0 || bullet.y > canvas.height || bullet.y < 0) {
+            bullets.splice(bIndex, 1);
+        }
     });
 
     enemyBullets.forEach((eb, ebIndex) => {
@@ -622,19 +668,6 @@ function update() {
                 width: 35, height: 35, color: "#ff4500", damage: 1 
             });
         }
-
-        bullets.forEach((bullet, bIndex) => {
-            if (checkCollision(bullet, dragon)) {
-                dragon.lives -= bullet.damage;
-                bullets.splice(bIndex, 1);
-                if (dragon.lives <= 0) {
-                    score += 1000; 
-                    scoreEl.innerText = score;
-                    dragonSpawned = false;
-                    dragon = null;
-                }
-            }
-        });
     }
 
     medkits.forEach((m, mIndex) => { if (checkCollision(player, m)) { if (player.lives < player.maxLives) player.lives++; medkits.splice(mIndex, 1); } });
@@ -758,6 +791,22 @@ function draw() {
 
     ctx.fillStyle = "#111116"; ctx.beginPath(); ctx.moveTo(0, floorY); ctx.lineTo(canvas.width*0.25, floorY-120); ctx.lineTo(canvas.width*0.6, floorY); ctx.lineTo(canvas.width*0.85, floorY-180); ctx.lineTo(canvas.width, floorY); ctx.fill();
 
+    // Renderizar los barriles decorativos en el fondo
+    backgroundDecorations.forEach(barrel => {
+        ctx.fillStyle = barrel.color;
+        ctx.fillRect(barrel.x, barrel.y, barrel.width, barrel.height);
+        // Detalles de líneas de los barriles decorativos
+        ctx.strokeStyle = "#111"; ctx.lineWidth = 2;
+        ctx.strokeRect(barrel.x, barrel.y, barrel.width, barrel.height);
+        ctx.beginPath();
+        ctx.moveTo(barrel.x, barrel.y + barrel.height / 3); ctx.lineTo(barrel.x + barrel.width, barrel.y + barrel.height / 3);
+        ctx.moveTo(barrel.x, barrel.y + (barrel.height / 3) * 2); ctx.lineTo(barrel.x + barrel.width, barrel.y + (barrel.height / 3) * 2);
+        ctx.stroke();
+        if (barrel.type === "toxic") {
+            ctx.fillStyle = "#7fff00"; ctx.fillRect(barrel.x + 5, barrel.y + 12, barrel.width - 10, 8);
+        }
+    });
+
     ctx.fillStyle = "#1e1e24"; ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
     ctx.fillStyle = "#00ffcc"; ctx.fillRect(0, floorY, canvas.width, 4);
     platforms.forEach(plat => { ctx.fillStyle = "#3a3a4a"; ctx.fillRect(plat.x, plat.y, plat.width, plat.height); ctx.fillStyle = "#00ffcc"; ctx.fillRect(plat.x, plat.y, plat.width, 2); });
@@ -796,7 +845,7 @@ function draw() {
         ctx.strokeStyle = "#7b00b8"; ctx.lineWidth = 3;
         for(let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc(dragon.x + 160 + (i*30), dragon.y + 200 + (i*20), 25, 0, Math.PI); ctx.stroke(); }
         ctx.fillStyle = "#6a009c";
-        ctx.beginPath(); ctx.moveTo(dragon.x + 140, dragon.y + 230); ctx.quadraticCurveTo(dragon.x + 60, dragon.y + 150, dragon.x + 40, dragon.y + 100); ctx.lineTo(dragon.x - 20, dragon.y + 80); ctx.lineTo(dragon.x + 30, dragon.y + 130); ctx.lineTo(dragon.x + 100, dragon.y + 160); quadraticCurveTo(dragon.x + 110, dragon.y + 200, dragon.x + 140, dragon.y + 250); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(dragon.x + 140, dragon.y + 230); ctx.quadraticCurveTo(dragon.x + 60, dragon.y + 150, dragon.x + 40, dragon.y + 100); ctx.lineTo(dragon.x - 20, dragon.y + 80); ctx.lineTo(dragon.x + 30, dragon.y + 130); ctx.lineTo(dragon.x + 100, dragon.y + 160); ctx.quadraticCurveTo(dragon.x + 110, dragon.y + 200, dragon.x + 140, dragon.y + 250); ctx.closePath(); ctx.fill();
         ctx.fillStyle = "#4a0072"; ctx.beginPath(); ctx.moveTo(dragon.x + 30, dragon.y + 130); ctx.lineTo(dragon.x - 5, dragon.y + 115); ctx.lineTo(dragon.x + 40, dragon.y + 150); ctx.closePath(); ctx.fill();
         ctx.fillStyle = "#9900ff"; ctx.beginPath(); ctx.moveTo(dragon.x + 40, dragon.y + 90); ctx.lineTo(dragon.x + 10, dragon.y + 40); ctx.lineTo(dragon.x + 60, dragon.y + 95); ctx.closePath(); ctx.fill();
         ctx.fillStyle = "#ffff00"; ctx.shadowColor = "#ffea00"; ctx.shadowBlur = 15;
@@ -884,7 +933,7 @@ function draw() {
     }
 
     // ==========================================
-    // RENDEREADO DE LA TIENDA DE ARMAS (Con Galil)
+    // RENDEREADO DE LA TIENDA DE ARMAS
     // ==========================================
     if (showShop) {
         ctx.fillStyle = "rgba(10, 10, 20, 0.95)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
