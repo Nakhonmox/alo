@@ -111,7 +111,7 @@ const shieldSystem = {
 };
 
 const player = {
-    x: 150,
+    x: canvas.width / 2,
     y: floorY - 80,
     width: 40,
     height: 80,
@@ -143,13 +143,18 @@ let medkits = [];
 let dragon = null;     
 
 // ==========================================
-// CONFIGURACIÓN DE EDIFICIOS NOCTURNOS
+// CONFIGURACIÓN DE EDIFICIOS NOCTURNOS (MEJOR CENTRADOS)
 // ==========================================
-const buildingWidth = 320;
+const buildingWidth = 300;
+const centerScreen = canvas.width / 2;
+
 const buildings = [
-    { x: -buildingWidth / 2, width: buildingWidth, height: floorY - 100, color: "#3a221d" },  // Izquierda (Mitad visible)
-    { x: canvas.width / 2 - buildingWidth / 2, width: buildingWidth, height: floorY - 50, color: "#2d2522" }, // Centro (Completo)
-    { x: canvas.width - buildingWidth / 2, width: buildingWidth, height: floorY - 150, color: "#332624" }   // Derecha (Mitad visible)
+    // Edificio 1 (Izquierda del centro)
+    { x: centerScreen - buildingWidth - 60, width: buildingWidth, height: floorY - 120, color: "#3a221d" },  
+    // Edificio 2 (Centro exacto - Más alto)
+    { x: centerScreen - buildingWidth / 2, width: buildingWidth, height: floorY - 40, color: "#2d2522" }, 
+    // Edificio 3 (Derecha del centro)
+    { x: centerScreen + 60, width: buildingWidth, height: floorY - 160, color: "#332624" }   
 ];
 
 // Ventanas precalculadas para evitar parpadeos incoherentes
@@ -168,20 +173,20 @@ buildings.forEach(bld => {
     }
 });
 
-// Plataformas reajustadas integradas perfectamente en los edificios
+// Plataformas reajustadas e integradas perfectamente en los 3 edificios centrales
 const platforms = [
-    // Plataformas en el edificio izquierdo
-    { x: 0, y: floorY - 140, width: 140, height: 15 },
-    { x: 40, y: floorY - 280, width: 120, height: 15 },
+    // Plataformas del edificio izquierdo (Edificio 1)
+    { x: buildings[0].x + 20, y: floorY - 140, width: 130, height: 15 },
+    { x: buildings[0].x + 130, y: floorY - 260, width: 120, height: 15 },
     
-    // Plataformas en el edificio central
-    { x: canvas.width / 2 - 160, y: floorY - 160, width: 130, height: 15 },
-    { x: canvas.width / 2 + 30, y: floorY - 260, width: 130, height: 15 },
-    { x: canvas.width / 2 - 100, y: floorY - 400, width: 200, height: 15 },
+    // Plataformas del edificio central (Edificio 2)
+    { x: buildings[1].x + 10, y: floorY - 180, width: 120, height: 15 },
+    { x: buildings[1].x + 170, y: floorY - 300, width: 120, height: 15 },
+    { x: buildings[1].x + 50, y: floorY - 420, width: 200, height: 15 },
     
-    // Plataformas en el edificio derecho
-    { x: canvas.width - 140, y: floorY - 180, width: 140, height: 15 },
-    { x: canvas.width - 160, y: floorY - 320, width: 110, height: 15 }
+    // Plataformas del edificio derecho (Edificio 3)
+    { x: buildings[2].x + 30, y: floorY - 150, width: 130, height: 15 },
+    { x: buildings[2].x + 140, y: floorY - 280, width: 120, height: 15 }
 ];
 
 // Fondo (Estrellas y Decoraciones de Relleno)
@@ -813,7 +818,7 @@ function draw() {
     }
 
     // ==========================================
-    // RENDERIZADO DE EDIFICIOS DETRÁS DE LAS PLATAFORMAS
+    // RENDERIZADO DE EDIFICIOS CENTRADOS DETRÁS DE LAS PLATAFORMAS
     // ==========================================
     buildings.forEach(bld => {
         // Fachada principal oscura estilo ladrillo de noche
@@ -826,7 +831,7 @@ function draw() {
 
         // Renderizado de ventanas cuadradas fijas
         bld.windows.forEach(w => {
-            ctx.fillStyle = w.lit ? "#ffdd66" : "#1a1211"; // Encendidas (Amarillo cálido) o Apagadas (Oscuro)
+            ctx.fillStyle = w.lit ? "#ffdd66" : "#1a1211"; // Encendidas o Apagadas
             ctx.fillRect(bld.x + w.relX, (floorY - bld.height) + w.relY, 16, 16);
         });
     });
@@ -852,7 +857,7 @@ function draw() {
     ctx.fillStyle = "#1e1e24"; ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
     ctx.fillStyle = "#00ffcc"; ctx.fillRect(0, floorY, canvas.width, 4);
 
-    // Plataformas posicionadas de forma exacta en las fachadas
+    // Plataformas posicionadas de forma exacta en las fachadas de los edificios
     platforms.forEach(plat => { 
         ctx.fillStyle = "#4e413d"; ctx.fillRect(plat.x, plat.y, plat.width, plat.height); 
         ctx.fillStyle = "#ffaa44"; ctx.fillRect(plat.x, plat.y, plat.width, 2); // Iluminación superior
@@ -863,7 +868,7 @@ function draw() {
     grenades.forEach(g => {
         ctx.fillStyle = "rgba(255, 0, 0, 0.35)";
         ctx.beginPath(); ctx.arc(g.x, g.y, g.radius, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = "#ff0000"; ctx.lineWidth = 2; ctx.stroke();
+        ctx.strokeStyle = "#ff0000"; ctx.lineWidth = 2; stroke();
     });
 
     drawStickman(player.x, player.y, player.color, true, player.facing === 1, player.isInvulnerable, 1, false);
@@ -933,7 +938,6 @@ function draw() {
         ctx.beginPath(); ctx.arc(sx-7, sy, 7, Math.PI, 0, false); ctx.arc(sx+7, sy, 7, Math.PI, 0, false); ctx.lineTo(sx, sy+12); ctx.closePath(); ctx.fill();
     }
 
-    // Textos de Ronda reubicados adecuadamente abajo para evitar solapamientos
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 24px Arial";
     ctx.fillText(`RONDA: ${currentRound}`, 25, 100);
