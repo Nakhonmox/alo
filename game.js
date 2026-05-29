@@ -79,6 +79,7 @@ function startNextRound() {
     
     clearInterval(spawnEnemyInterval);
     clearInterval(spawnFlyingInterval);
+    clearInterval(spawnShieldedInterval); // Limpiar intervalo de enemigo con escudo
     
     let baseEnemyTime = 2500;
     let baseFlyingTime = 4000;
@@ -91,6 +92,9 @@ function startNextRound() {
     
     spawnEnemyInterval = setInterval(spawnEnemy, baseEnemyTime);
     spawnFlyingInterval = setInterval(spawnFlyingEnemy, baseFlyingTime);
+    
+    // Volver a activar el intervalo de enemigos con escudo si corresponde
+    spawnShieldedInterval = setInterval(spawnShieldedEnemy, 10000);
 }
 
 function updatePlayerStats() {
@@ -116,7 +120,7 @@ const player = {
     width: 40,
     height: 80,
     speed: 6,
-    jumpForce: 16,
+    jumpForce: 14,
     velocityY: 0,
     isGrounded: false,
     color: "#00ffcc",
@@ -446,7 +450,9 @@ function spawnEnemy() {
         color: "#ff3333",
         isBoss: false,
         isFlying: false,
+        isShielded: false,
         lives: 2, 
+        maxLives: 2,
         lastGrenade: Date.now() + Math.random() * 2000
     });
 }
@@ -455,6 +461,11 @@ let spawnEnemyInterval = setInterval(spawnEnemy, 2500);
 function sampleFlyingSpawn() {
     let maxForThisRound = getTotalEnemiesForRound(currentRound);
     return (currentRound >= 2 && enemiesSpawnedInRound < maxForThisRound && !isRoundBreak);
+}
+
+function sampleShieldedSpawn() {
+    let maxForThisRound = getTotalEnemiesForRound(currentRound);
+    return (currentRound >= 5 && enemiesSpawnedInRound < maxForThisRound && !isRoundBreak);
 }
 
 function spawnFlyingEnemy() {
@@ -470,10 +481,35 @@ function spawnFlyingEnemy() {
         color: "#ff8c00",
         isBoss: false,
         isFlying: true,
-        lives: 1 
+        isShielded: false,
+        lives: 1,
+        maxLives: 1
     });
 }
 let spawnFlyingInterval = setInterval(spawnFlyingEnemy, 4000);
+
+// NUEVO ENEMIGO CON ESCUDO (Aparece cada 10seg desde la ronda 5)
+function spawnShieldedEnemy() {
+    if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return;
+    if (!sampleShieldedSpawn()) return;
+
+    enemiesSpawnedInRound++;
+    enemies.push({
+        x: Math.random() > 0.5 ? canvas.width + 20 : -50,
+        y: floorY - 80,
+        width: 45, height: 80,
+        velocityY: 0, isGrounded: true,
+        speed: 1.5, // Un poco más lento debido al peso del escudo
+        color: "#4f5d75", // Gris azulado acorazado
+        isBoss: false,
+        isFlying: false,
+        isShielded: true,
+        lives: 5, 
+        maxLives: 5,
+        lastGrenade: Date.now() + Math.random() * 3000
+    });
+}
+let spawnShieldedInterval = setInterval(spawnShieldedEnemy, 10000);
 
 function spawnBoss() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return; 
@@ -486,6 +522,7 @@ function spawnBoss() {
         color: "#990000",
         isBoss: true,
         isFlying: false,
+        isShielded: false,
         lives: 10, maxLives: 10,
         lastShot: Date.now()
     });
@@ -684,7 +721,7 @@ function update() {
                 if (enemy.lives <= 0) {
                     enemies.splice(eIndex, 1);
                     enemiesLeftInRound--; 
-                    score += enemy.isBoss ? 150 : 50; 
+                    score += enemy.isBoss ? 150 : (enemy.isShielded ? 100 : 50); 
                     scoreEl.innerText = score;
                 }
             }
@@ -711,7 +748,7 @@ function checkCollision(rect1, rect2) {
     return rect1.x < rect2.x + rect2.width && rect1.x + rect1.width > rect2.x && rect1.y < rect2.y + rect2.height && rect1.y + rect1.height > rect2.y;
 }
 
-function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 1, isFlying = false) {
+function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 1, isFlying = false, isShielded = false) {
     if (isInvulnerable && Math.floor(Date.now() / 100) % 2 === 0) return;
     ctx.strokeStyle = color; ctx.lineWidth = 3 * scale; ctx.fillStyle = color;
     const w = 40 * scale; const h = 80 * scale; const cx = x + w / 2;
@@ -725,6 +762,21 @@ function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 
         ctx.fillStyle = "rgba(255, 69, 0, 0.6)";
         ctx.beginPath(); ctx.moveTo(cx, y + 35); ctx.lineTo(cx - 35, y + 10 + wingWave); ctx.lineTo(cx - 15, y + 45); ctx.closePath(); ctx.fill();
         ctx.beginPath(); ctx.moveTo(cx, y + 35); ctx.lineTo(cx + 35, y + 10 + wingWave); ctx.lineTo(cx + 15, y + 45); ctx.closePath(); ctx.fill();
+    }
+
+    if (isShielded) {
+        // Dibujar un escudo de energía frente al enemigo acorazado
+        ctx.fillStyle = "rgba(0, 191, 255, 0.4)";
+        ctx.strokeStyle = "#00bfff";
+        ctx.lineWidth = 3;
+        ctx.save();
+        let shieldOffset = facingRight ? 20 : -15;
+        ctx.beginPath();
+        // Arco ovalado vertical simulando un gran escudo antidisturbios táctico
+        ctx.roundRect(cx + shieldOffset, y + 15, 12 * scale, 55 * scale, 5);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
     }
 
     if (hasGun) {
@@ -890,10 +942,16 @@ function draw() {
 
     enemies.forEach(enemy => {
         const scale = enemy.isBoss ? 2 : 1;
-        drawStickman(enemy.x, enemy.y, enemy.color, false, enemy.facing === 1, false, scale, enemy.isFlying);
+        drawStickman(enemy.x, enemy.y, enemy.color, false, enemy.facing === 1, false, scale, enemy.isFlying, enemy.isShielded);
+        
+        // Renderizar barra de vida para Jefes y para el enemigo con Escudo (Shielded)
         if (enemy.isBoss) {
             ctx.fillStyle = "#333"; ctx.fillRect(enemy.x, enemy.y - 15, 80, 8);
             ctx.fillStyle = "#ff0000"; ctx.fillRect(enemy.x, enemy.y - 15, (enemy.lives / enemy.maxLives) * 80, 8);
+        } else if (enemy.isShielded) {
+            ctx.fillStyle = "#222"; ctx.fillRect(enemy.x, enemy.y - 15, 45, 6);
+            ctx.fillStyle = "#00bfff"; // Barra azul para indicar vida del escudo protector
+            ctx.fillRect(enemy.x, enemy.y - 15, (enemy.lives / enemy.maxLives) * 45, 6);
         }
     });
 
@@ -1017,7 +1075,7 @@ function draw() {
         }
 
         if (player.currentWeapon === "duales") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 3. Pistolas Duales (Doble Brazo)", canvas.width / 2, canvas.height * 0.50);
+            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 3. Pistolas Duales (Doble Armazón)", canvas.width / 2, canvas.height * 0.50);
         } else if (weaponsCatalog.duales.purchased) {
             ctx.fillStyle = "#ff00ff"; ctx.fillText("[Presiona 3] Equipar Pistolas Duales (Ya Adquiridas)", canvas.width / 2, canvas.height * 0.50);
         } else {
