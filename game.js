@@ -116,7 +116,7 @@ const player = {
     width: 40,
     height: 80,
     speed: 6,
-    jumpForce: 14,
+    jumpForce: 16,
     velocityY: 0,
     isGrounded: false,
     color: "#00ffcc",
