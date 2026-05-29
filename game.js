@@ -27,6 +27,7 @@ const playButton = {
 
 let isPaused = false;
 let showShop = false;
+let showCheats = false; // Estado para el nuevo menú de trucos
 
 // Sistema de Oleadas / Jefes Especiales
 let gameTimer = 0;
@@ -63,18 +64,6 @@ const weaponsCatalog = {
     galil:   { name: "Galil SAR", baseAmmo: 25, cooldown: 130, damage: 2, cost: 5000, purchased: false, color: "#4caf50" }
 };
 
-// ==========================================
-// SISTEMA DEL CÓDIGO KONAMI (CORREGIDO)
-// ==========================================
-const konamiCode = [
-    "arrowup", "arrowup", 
-    "arrowdown", "arrowdown", 
-    "arrowleft", "arrowright", 
-    "arrowleft", "arrowright", 
-    "b", "a"
-];
-let konamiIndex = 0;
-
 function getTotalEnemiesForRound(round) {
     if (round === 1) return 20;
     return 20 + (round - 1) * 15; 
@@ -100,7 +89,6 @@ function updatePlayerStats() {
     player.maxAmmo = currentWeaponData.baseAmmo + permanentUpgrades.bonusMaxAmmo;
     player.shootCooldown = currentWeaponData.cooldown;
 }
-// ==========================================
 
 // SISTEMA DE OVERSHIELD
 const shieldSystem = {
@@ -203,31 +191,32 @@ window.addEventListener("click", e => {
     }
 });
 
-// Captura de entradas generales y Tienda interactiva
+// Captura de entradas generales y Menús
 window.addEventListener("keydown", e => {
     if (gameState !== "playing") return; 
     
     const key = e.key.toLowerCase();
 
-    // FILTRO INTERNO COMPLETO PARA EL CÓDIGO KONAMI
-    // Solo procesamos si la tecla pertenece a la secuencia para evitar que la 'A' o 'D' de moverse rompan el combo
-    if (!isRoundBreak && konamiCode.includes(key)) {
-        if (key === konamiCode[konamiIndex]) {
-            konamiIndex++;
-            if (konamiIndex === konamiCode.length) {
-                score += 10000;
-                scoreEl.innerText = score;
-                konamiIndex = 0; // Reiniciar limpiamente
-            }
-        } else {
-            // Si presionas una tecla Konami errónea (ej: presionar abajo cuando tocaba izquierda), reinicia
-            konamiIndex = (key === konamiCode[0]) ? 1 : 0;
-        }
+    // NUEVA DETECCIÓN: Menú de trucos con Shift + M
+    if (e.shiftKey && key === "m") {
+        showCheats = !showCheats;
+        showShop = false; // Cerrar la tienda si estaba abierta
+        isPaused = showCheats;
+        return;
     }
 
     if (isRoundBreak) return;
 
-    if (key === "t") { showShop = !showShop; isPaused = showShop; return; }
+    // Lógica interna si el Menú de Trucos está activo
+    if (showCheats) {
+        if (key === "1") {
+            score += 10000;
+            scoreEl.innerText = score;
+        }
+        return;
+    }
+
+    if (key === "t" && !showCheats) { showShop = !showShop; isPaused = showShop; return; }
     
     if (showShop) {
         if (key === "1") {
@@ -281,19 +270,11 @@ window.addEventListener("keydown", e => {
         return;
     }
     
-    // Ignoramos las flechas del teclado en las acciones de movimiento tradicionales del stickman
-    if (!key.startsWith("arrow")) {
-        keys[e.key === " " ? "space" : key] = true;
-    }
+    keys[e.key === " " ? "space" : key] = true;
 });
 
 window.addEventListener("keyup", e => {
-    if (gameState === "playing") {
-        const key = e.key.toLowerCase();
-        if (!key.startsWith("arrow")) {
-            keys[e.key === " " ? "space" : key] = false;
-        }
-    }
+    if (gameState === "playing") keys[e.key === " " ? "space" : e.key.toLowerCase()] = false;
 });
 
 function equipWeapon(weaponId) {
@@ -775,7 +756,7 @@ function draw() {
         ctx.fillText("PLAY", canvas.width / 2, canvas.height / 2 + 38);
         ctx.fillStyle = "#888888";
         ctx.font = "16px Arial";
-        ctx.fillText("Controles: A/D (Moverse) - W (Saltar) - Espacio (Disparar) - T (Tienda) - O (Escudo)", canvas.width / 2, canvas.height * 0.75);
+        ctx.fillText("Controles: A/D (Moverse) - W (Saltar) - Espacio (Disparar) - T (Tienda) - Shift+M (Cheats)", canvas.width / 2, canvas.height * 0.75);
         ctx.textAlign = "left"; 
         return; 
     }
@@ -963,6 +944,24 @@ function draw() {
         }
         
         ctx.fillStyle = "#aaa"; ctx.font = "18px Arial"; ctx.fillText("Presiona 'T' para cerrar el menú y volver al juego", canvas.width / 2, canvas.height * 0.85);
+        ctx.textAlign = "left";
+    }
+
+    // NUEVO RENDEREADO: Render de la Pantalla de Trucos (Cheats)
+    if (showCheats) {
+        ctx.fillStyle = "rgba(25, 10, 10, 0.96)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#ff3333"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
+        ctx.fillText("MENÚ DE TRUCOS / CHEATS (Juego Pausado)", canvas.width / 2, canvas.height * 0.2);
+        
+        ctx.fillStyle = "#ffffff"; ctx.font = "24px Arial"; 
+        ctx.fillText(`Puntuación Actual: ${score} pts`, canvas.width / 2, canvas.height * 0.28);
+        
+        ctx.font = "22px Arial";
+        ctx.fillStyle = "#ffaa00";
+        ctx.fillText("[Presiona 1] Inyectar +10,000 Puntos Silenciosos", canvas.width / 2, canvas.height * 0.45);
+        
+        ctx.fillStyle = "#aaa"; ctx.font = "18px Arial"; 
+        ctx.fillText("Presiona 'Shift + M' de nuevo para cerrar el menú de trucos", canvas.width / 2, canvas.height * 0.75);
         ctx.textAlign = "left";
     }
 }
