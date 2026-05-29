@@ -27,7 +27,7 @@ const playButton = {
 
 let isPaused = false;
 let showShop = false;
-let showCheats = false; // Estado para el nuevo menú de trucos
+let showCheats = false; // Estado para el menú de trucos
 
 // Sistema de Oleadas / Jefes Especiales
 let gameTimer = 0;
@@ -60,8 +60,7 @@ const weaponsCatalog = {
     pistola: { name: "Pistola Base", baseAmmo: 9, cooldown: 400, damage: 1, cost: 0, purchased: true, color: "#ffffff" },
     mp5:     { name: "Subfusil MP5", baseAmmo: 20, cooldown: 130, damage: 1, cost: 1000, purchased: false, color: "#ffff00" },
     duales:  { name: "Pistolas Duales", baseAmmo: 18, cooldown: 220, damage: 1, cost: 2000, purchased: false, color: "#ff00ff" },
-    rifle:   { name: "Rifle Pesado", baseAmmo: 5, cooldown: 800, damage: 2, cost: 3000, purchased: false, color: "#00bfff" },
-    galil:   { name: "Galil SAR", baseAmmo: 25, cooldown: 130, damage: 2, cost: 5000, purchased: false, color: "#4caf50" }
+    rifle:   { name: "Rifle Pesado", baseAmmo: 5, cooldown: 800, damage: 2, cost: 3000, purchased: false, color: "#00bfff" }
 };
 
 function getTotalEnemiesForRound(round) {
@@ -89,6 +88,7 @@ function updatePlayerStats() {
     player.maxAmmo = currentWeaponData.baseAmmo + permanentUpgrades.bonusMaxAmmo;
     player.shootCooldown = currentWeaponData.cooldown;
 }
+// ==========================================
 
 // SISTEMA DE OVERSHIELD
 const shieldSystem = {
@@ -191,32 +191,35 @@ window.addEventListener("click", e => {
     }
 });
 
-// Captura de entradas generales y Menús
+// Control e Interacción de Teclado (Menús, Tienda, Cheats y Movimiento)
 window.addEventListener("keydown", e => {
-    if (gameState !== "playing") return; 
+    if (gameState !== "playing" || isRoundBreak) return; 
     
     const key = e.key.toLowerCase();
 
-    // NUEVA DETECCIÓN: Menú de trucos con Shift + M
-    if (e.shiftKey && key === "m") {
+    // 1. CONTROL EXCLUSIVO DEL MENÚ DE TRUCOS (Tecla 'M')
+    if (key === "m") {
         showCheats = !showCheats;
         showShop = false; // Cerrar la tienda si estaba abierta
         isPaused = showCheats;
         return;
     }
 
-    if (isRoundBreak) return;
-
-    // Lógica interna si el Menú de Trucos está activo
+    // Si el menú de trucos está abierto, capturar sus opciones y bloquear el resto del juego
     if (showCheats) {
         if (key === "1") {
-            score += 10000;
+            score += 10000; 
             scoreEl.innerText = score;
         }
         return;
     }
 
-    if (key === "t" && !showCheats) { showShop = !showShop; isPaused = showShop; return; }
+    // 2. CONTROL DEL MENÚ DE LA TIENDA (Tecla 'T')
+    if (key === "t") { 
+        showShop = !showShop; 
+        isPaused = showShop; 
+        return; 
+    }
     
     if (showShop) {
         if (key === "1") {
@@ -256,20 +259,10 @@ window.addEventListener("keydown", e => {
                 showShop = false; isPaused = false;
             }
         }
-        if (key === "5") {
-            if (weaponsCatalog.galil.purchased) {
-                equipWeapon("galil");
-                showShop = false; isPaused = false;
-            } else if (score >= weaponsCatalog.galil.cost) {
-                score -= weaponsCatalog.galil.cost; scoreEl.innerText = score;
-                weaponsCatalog.galil.purchased = true;
-                equipWeapon("galil");
-                showShop = false; isPaused = false;
-            }
-        }
         return;
     }
-    
+
+    // Registrar teclas de movimiento normales si no hay menús abiertos
     keys[e.key === " " ? "space" : key] = true;
 });
 
@@ -308,13 +301,11 @@ window.addEventListener("keydown", e => {
                 bulletSpreadY = (player.ammo % 2 === 0) ? -6 : 6;
             }
 
-            const isHeavyBullet = player.currentWeapon === "rifle" || player.currentWeapon === "galil";
-
             bullets.push({
                 x: originX,
                 y: originY + bulletSpreadY,
-                width: isHeavyBullet ? 18 : 10, 
-                height: isHeavyBullet ? 6 : 4,
+                width: player.currentWeapon === "rifle" ? 18 : 10, 
+                height: player.currentWeapon === "rifle" ? 6 : 4,
                 speedX: Math.cos(angle) * 18,
                 speedY: Math.sin(angle) * 18,
                 color: weaponData.color,
@@ -330,7 +321,6 @@ function startReload() {
     if (player.currentWeapon === "mp5") player.reloadTimer = 60;
     else if (player.currentWeapon === "duales") player.reloadTimer = 70;
     else if (player.currentWeapon === "rifle") player.reloadTimer = 100;
-    else if (player.currentWeapon === "galil") player.reloadTimer = 90;
     else player.reloadTimer = 80;
 }
 
@@ -686,15 +676,8 @@ function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 
             ctx.rotate(angle);
             ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(20, 0); ctx.stroke();
             ctx.strokeStyle = "#ffffff"; 
-            
-            if (player.currentWeapon === "mp5") ctx.lineWidth = 5;
-            else if (player.currentWeapon === "rifle" || player.currentWeapon === "galil") ctx.lineWidth = 6;
-            else ctx.lineWidth = 3;
-            
-            ctx.beginPath(); 
-            ctx.moveTo(20, 0); 
-            ctx.lineTo((player.currentWeapon === "rifle" || player.currentWeapon === "galil") ? 38 : 30, 0); 
-            ctx.stroke();
+            ctx.lineWidth = player.currentWeapon === "mp5" ? 5 : (player.currentWeapon === "rifle" ? 6 : 3);
+            ctx.beginPath(); ctx.moveTo(20, 0); ctx.lineTo(player.currentWeapon === "rifle" ? 38 : 30, 0); ctx.stroke();
             ctx.restore();
         }
     } else {
@@ -703,6 +686,7 @@ function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 
             ctx.translate(cx, y + 35);
             
             let dir = facingRight ? 1 : -1;
+            
             let angleBase = dir === 1 ? -Math.PI / 5 : -Math.PI * 4 / 5;
             let wobble = Math.sin(Date.now() / 100) * 0.1;
             ctx.rotate(angleBase + wobble);
@@ -756,7 +740,7 @@ function draw() {
         ctx.fillText("PLAY", canvas.width / 2, canvas.height / 2 + 38);
         ctx.fillStyle = "#888888";
         ctx.font = "16px Arial";
-        ctx.fillText("Controles: A/D (Moverse) - W (Saltar) - Espacio (Disparar) - T (Tienda) - Shift+M (Cheats)", canvas.width / 2, canvas.height * 0.75);
+        ctx.fillText("Controles: A/D (Moverse) - W (Saltar) - Espacio (Disparar) - T (Tienda) - M (Cheats)", canvas.width / 2, canvas.height * 0.75);
         ctx.textAlign = "left"; 
         return; 
     }
@@ -888,66 +872,61 @@ function draw() {
         ctx.textAlign = "left";
     }
 
+    // ==========================================
+    // RENDEREADO DE LA TIENDA DE ARMAS
+    // ==========================================
     if (showShop) {
         ctx.fillStyle = "rgba(10, 10, 20, 0.95)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#00ffcc"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
-        ctx.fillText("TIENDA & ARMERÍA (Juego Pausado)", canvas.width / 2, canvas.height * 0.12);
-        ctx.fillStyle = "#ffffff"; ctx.font = "24px Arial"; ctx.fillText(`Tu Puntuación: ${score} pts`, canvas.width / 2, canvas.height * 0.18);
+        ctx.fillText("TIENDA & ARMERÍA (Juego Pausado)", canvas.width / 2, canvas.height * 0.15);
+        ctx.fillStyle = "#ffffff"; ctx.font = "24px Arial"; ctx.fillText(`Tu Puntuación: ${score} pts`, canvas.width / 2, canvas.height * 0.22);
         
         ctx.font = "22px Arial";
         
         // 1. Pistola Base
         if (player.currentWeapon === "pistola") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 1. Pistola Base", canvas.width / 2, canvas.height * 0.32);
+            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 1. Pistola Base", canvas.width / 2, canvas.height * 0.38);
         } else {
-            ctx.fillStyle = "#ffffff"; ctx.fillText("[Presiona 1] Equipar Pistola Base (Ya Adquirida)", canvas.width / 2, canvas.height * 0.32);
+            ctx.fillStyle = "#ffffff"; ctx.fillText("[Presiona 1] Equipar Pistola Base (Ya Adquirida)", canvas.width / 2, canvas.height * 0.38);
         }
 
         // 2. Subfusil MP5
         if (player.currentWeapon === "mp5") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 2. Subfusil MP5", canvas.width / 2, canvas.height * 0.42);
+            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 2. Subfusil MP5", canvas.width / 2, canvas.height * 0.48);
         } else if (weaponsCatalog.mp5.purchased) {
-            ctx.fillStyle = "#ffff00"; ctx.fillText("[Presiona 2] Equipar Subfusil MP5 (Ya Adquirido)", canvas.width / 2, canvas.height * 0.42);
+            ctx.fillStyle = "#ffff00"; ctx.fillText("[Presiona 2] Equipar Subfusil MP5 (Ya Adquirido)", canvas.width / 2, canvas.height * 0.48);
         } else {
             ctx.fillStyle = score >= weaponsCatalog.mp5.cost ? "#ffffff" : "#ff3333";
-            ctx.fillText(`[Presiona 2] Comprar Subfusil MP5 - Costo: ${weaponsCatalog.mp5.cost} pts`, canvas.width / 2, canvas.height * 0.42);
+            ctx.fillText(`[Presiona 2] Comprar Subfusil MP5 - Costo: ${weaponsCatalog.mp5.cost} pts`, canvas.width / 2, canvas.height * 0.48);
         }
 
         // 3. Pistolas Duales
         if (player.currentWeapon === "duales") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 3. Pistolas Duales (Doble Brazo)", canvas.width / 2, canvas.height * 0.52);
+            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 3. Pistolas Duales (Doble Brazo)", canvas.width / 2, canvas.height * 0.58);
         } else if (weaponsCatalog.duales.purchased) {
-            ctx.fillStyle = "#ff00ff"; ctx.fillText("[Presiona 3] Equipar Pistolas Duales (Ya Adquiridas)", canvas.width / 2, canvas.height * 0.52);
+            ctx.fillStyle = "#ff00ff"; ctx.fillText("[Presiona 3] Equipar Pistolas Duales (Ya Adquiridas)", canvas.width / 2, canvas.height * 0.58);
         } else {
             ctx.fillStyle = score >= weaponsCatalog.duales.cost ? "#ffffff" : "#ff3333";
-            ctx.fillText(`[Presiona 3] Comprar Pistolas Duales - Costo: ${weaponsCatalog.duales.cost} pts`, canvas.width / 2, canvas.height * 0.52);
+            ctx.fillText(`[Presiona 3] Comprar Pistolas Duales - Costo: ${weaponsCatalog.duales.cost} pts`, canvas.width / 2, canvas.height * 0.58);
         }
 
         // 4. Rifle Pesado
         if (player.currentWeapon === "rifle") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 4. Rifle Pesado", canvas.width / 2, canvas.height * 0.62);
+            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 4. Rifle Pesado", canvas.width / 2, canvas.height * 0.68);
         } else if (weaponsCatalog.rifle.purchased) {
-            ctx.fillStyle = "#00bfff"; ctx.fillText("[Presiona 4] Equipar Rifle Pesado (Ya Adquirido)", canvas.width / 2, canvas.height * 0.62);
+            ctx.fillStyle = "#00bfff"; ctx.fillText("[Presiona 4] Equipar Rifle Pesado (Ya Adquirido)", canvas.width / 2, canvas.height * 0.68);
         } else {
             ctx.fillStyle = score >= weaponsCatalog.rifle.cost ? "#ffffff" : "#ff3333";
-            ctx.fillText(`[Presiona 4] Comprar Rifle Pesado - Costo: ${weaponsCatalog.rifle.cost} pts`, canvas.width / 2, canvas.height * 0.62);
-        }
-
-        // 5. Galil SAR
-        if (player.currentWeapon === "galil") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 5. Rifle Automático Galil SAR", canvas.width / 2, canvas.height * 0.72);
-        } else if (weaponsCatalog.galil.purchased) {
-            ctx.fillStyle = "#4caf50"; ctx.fillText("[Presiona 5] Equipar Galil SAR (Ya Adquirido)", canvas.width / 2, canvas.height * 0.72);
-        } else {
-            ctx.fillStyle = score >= weaponsCatalog.galil.cost ? "#ffffff" : "#ff3333";
-            ctx.fillText(`[Presiona 5] Comprar Galil SAR - Costo: ${weaponsCatalog.galil.cost} pts`, canvas.width / 2, canvas.height * 0.72);
+            ctx.fillText(`[Presiona 4] Comprar Rifle Pesado - Costo: ${weaponsCatalog.rifle.cost} pts`, canvas.width / 2, canvas.height * 0.68);
         }
         
-        ctx.fillStyle = "#aaa"; ctx.font = "18px Arial"; ctx.fillText("Presiona 'T' para cerrar el menú y volver al juego", canvas.width / 2, canvas.height * 0.85);
+        ctx.fillStyle = "#aaa"; ctx.font = "18px Arial"; ctx.fillText("Presiona 'T' para cerrar el menú y volver al juego", canvas.width / 2, canvas.height * 0.82);
         ctx.textAlign = "left";
     }
 
-    // NUEVO RENDEREADO: Render de la Pantalla de Trucos (Cheats)
+    // ==========================================
+    // RENDERIZADO DEL MENÚ DE TRUCOS (CHEATS)
+    // ==========================================
     if (showCheats) {
         ctx.fillStyle = "rgba(25, 10, 10, 0.96)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#ff3333"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
@@ -958,10 +937,10 @@ function draw() {
         
         ctx.font = "22px Arial";
         ctx.fillStyle = "#ffaa00";
-        ctx.fillText("[Presiona 1] Inyectar +10,000 Puntos Silenciosos", canvas.width / 2, canvas.height * 0.45);
+        ctx.fillText("[Presiona 1] Añadir +10,000 Puntos Instantáneos", canvas.width / 2, canvas.height * 0.45);
         
         ctx.fillStyle = "#aaa"; ctx.font = "18px Arial"; 
-        ctx.fillText("Presiona 'Shift + M' de nuevo para cerrar el menú de trucos", canvas.width / 2, canvas.height * 0.75);
+        ctx.fillText("Presiona 'M' de nuevo para cerrar el menú de trucos", canvas.width / 2, canvas.height * 0.75);
         ctx.textAlign = "left";
     }
 }
