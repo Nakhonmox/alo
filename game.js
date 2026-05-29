@@ -143,53 +143,60 @@ let medkits = [];
 let dragon = null;     
 
 // ==========================================
-// CONFIGURACIÓN DE EDIFICIOS NOCTURNOS (MEJOR CENTRADOS)
+// EDIFICIOS SEPARADOS Y DISTRIBUIDOS EN PANTALLA
 // ==========================================
-const buildingWidth = 300;
-const centerScreen = canvas.width / 2;
+const buildingWidth = 280;
 
 const buildings = [
-    // Edificio 1 (Izquierda del centro)
-    { x: centerScreen - buildingWidth - 60, width: buildingWidth, height: floorY - 120, color: "#3a221d" },  
-    // Edificio 2 (Centro exacto - Más alto)
-    { x: centerScreen - buildingWidth / 2, width: buildingWidth, height: floorY - 40, color: "#2d2522" }, 
-    // Edificio 3 (Derecha del centro)
-    { x: centerScreen + 60, width: buildingWidth, height: floorY - 160, color: "#332624" }   
+    // Edificio 1: Lateral Izquierdo
+    { x: canvas.width * 0.12, width: buildingWidth, height: floorY - 140, color: "#3a221d" },  
+    // Edificio 2: Eje Central
+    { x: (canvas.width / 2) - (buildingWidth / 2), width: buildingWidth, height: floorY - 60, color: "#2d2522" }, 
+    // Edificio 3: Lateral Derecho
+    { x: canvas.width * 0.88 - buildingWidth, width: buildingWidth, height: floorY - 180, color: "#332624" }   
 ];
 
-// Ventanas precalculadas para evitar parpadeos incoherentes
+// Inicializar ventanas dinámicas
 buildings.forEach(bld => {
     bld.windows = [];
-    let rows = Math.floor(bld.height / 50);
-    let cols = Math.floor(bld.width / 40);
+    let rows = Math.floor(bld.height / 55);
+    let cols = Math.floor(bld.width / 45);
     for (let r = 1; r < rows - 1; r++) {
         for (let c = 1; c < cols - 1; c++) {
             bld.windows.push({
-                relX: c * 40,
-                relY: r * 50,
-                lit: Math.random() > 0.65 // 35% de ventanas encendidas
+                relX: c * 45,
+                relY: r * 55,
+                lit: Math.random() > 0.65 
             });
         }
     }
 });
 
-// Plataformas reajustadas e integradas perfectamente en los 3 edificios centrales
+// ==========================================
+// PLATAFORMAS PERFECTAMENTE ENLAZADAS CON LOS EDIFICIOS SEPARADOS
+// ==========================================
 const platforms = [
-    // Plataformas del edificio izquierdo (Edificio 1)
-    { x: buildings[0].x + 20, y: floorY - 140, width: 130, height: 15 },
-    { x: buildings[0].x + 130, y: floorY - 260, width: 120, height: 15 },
+    // Cornisas y balcones del Edificio Izquierdo (Edificio 1)
+    { x: buildings[0].x - 20, y: floorY - 150, width: 140, height: 15 },
+    { x: buildings[0].x + 140, y: floorY - 270, width: 140, height: 15 },
     
-    // Plataformas del edificio central (Edificio 2)
+    // Plataformas intermedias de salto para cruzar al centro
+    { x: buildings[0].x + 260, y: floorY - 380, width: 120, height: 15 },
+
+    // Cornisas y balcones del Edificio Central (Edificio 2)
     { x: buildings[1].x + 10, y: floorY - 180, width: 120, height: 15 },
-    { x: buildings[1].x + 170, y: floorY - 300, width: 120, height: 15 },
-    { x: buildings[1].x + 50, y: floorY - 420, width: 200, height: 15 },
+    { x: buildings[1].x + 150, y: floorY - 300, width: 120, height: 15 },
+    { x: buildings[1].x + 40, y: floorY - 420, width: 200, height: 15 },
     
-    // Plataformas del edificio derecho (Edificio 3)
-    { x: buildings[2].x + 30, y: floorY - 150, width: 130, height: 15 },
-    { x: buildings[2].x + 140, y: floorY - 280, width: 120, height: 15 }
+    // Plataformas intermedias de salto lado derecho
+    { x: buildings[2].x - 100, y: floorY - 350, width: 120, height: 15 },
+
+    // Cornisas y balcones del Edificio Derecho (Edificio 3)
+    { x: buildings[2].x + 20, y: floorY - 160, width: 130, height: 15 },
+    { x: buildings[2].x + 130, y: floorY - 290, width: 140, height: 15 }
 ];
 
-// Fondo (Estrellas y Decoraciones de Relleno)
+// Estrellas decorativas del fondo
 const stars = [];
 for (let i = 0; i < 60; i++) {
     stars.push({ x: Math.random() * canvas.width, y: Math.random() * (canvas.height * 0.6), size: Math.random() * 2 });
@@ -796,8 +803,10 @@ function draw() {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#00ffcc";
         ctx.font = "bold 60px Arial";
+        ctx.shadowColor = "#00ffcc"; ctx.shadowBlur = 10;
         ctx.textAlign = "center";
         ctx.fillText("STICKMAN SURVIVOR", canvas.width / 2, canvas.height * 0.35);
+        ctx.shadowBlur = 0; 
 
         let isHover = mouseX >= playButton.x && mouseX <= playButton.x + playButton.width &&
                       mouseY >= playButton.y && mouseY <= playButton.y + playButton.height;
@@ -818,28 +827,27 @@ function draw() {
     }
 
     // ==========================================
-    // RENDERIZADO DE EDIFICIOS CENTRADOS DETRÁS DE LAS PLATAFORMAS
+    // RENDERIZADO DE EDIFICIOS DISTRIBUIDOS
     // ==========================================
     buildings.forEach(bld => {
-        // Fachada principal oscura estilo ladrillo de noche
         ctx.fillStyle = bld.color;
         ctx.fillRect(bld.x, floorY - bld.height, bld.width, bld.height);
 
-        // Bordes superiores/cornisas decorativas del edificio
+        // Cornisa superior estética
         ctx.fillStyle = "#1e1513";
         ctx.fillRect(bld.x, floorY - bld.height, bld.width, 6);
 
-        // Renderizado de ventanas cuadradas fijas
+        // Ventanas
         bld.windows.forEach(w => {
-            ctx.fillStyle = w.lit ? "#ffdd66" : "#1a1211"; // Encendidas o Apagadas
+            ctx.fillStyle = w.lit ? "#ffdd66" : "#1a1211"; 
             ctx.fillRect(bld.x + w.relX, (floorY - bld.height) + w.relY, 16, 16);
         });
     });
 
-    // Montañas lejanas decorativas sobre el suelo
+    // Siluetas de fondo
     ctx.fillStyle = "#111116"; ctx.beginPath(); ctx.moveTo(0, floorY); ctx.lineTo(canvas.width*0.25, floorY-120); ctx.lineTo(canvas.width*0.6, floorY); ctx.lineTo(canvas.width*0.85, floorY-180); ctx.lineTo(canvas.width, floorY); ctx.fill();
 
-    // Renderizar los barriles decorativos en el fondo
+    // Barriles decorativos
     backgroundDecorations.forEach(barrel => {
         ctx.fillStyle = barrel.color;
         ctx.fillRect(barrel.x, barrel.y, barrel.width, barrel.height);
@@ -854,13 +862,14 @@ function draw() {
         }
     });
 
+    // Suelo de combate principal
     ctx.fillStyle = "#1e1e24"; ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
     ctx.fillStyle = "#00ffcc"; ctx.fillRect(0, floorY, canvas.width, 4);
 
-    // Plataformas posicionadas de forma exacta en las fachadas de los edificios
+    // Renderizado de las plataformas integradas en la nueva estructura urbana
     platforms.forEach(plat => { 
         ctx.fillStyle = "#4e413d"; ctx.fillRect(plat.x, plat.y, plat.width, plat.height); 
-        ctx.fillStyle = "#ffaa44"; ctx.fillRect(plat.x, plat.y, plat.width, 2); // Iluminación superior
+        ctx.fillStyle = "#ffaa44"; ctx.fillRect(plat.x, plat.y, plat.width, 2); 
     });
 
     medkits.forEach(m => { ctx.fillStyle = "#ffffff"; ctx.fillRect(m.x, m.y, m.width, m.height); ctx.fillStyle = "#ff0000"; ctx.fillRect(m.x + m.width/2 - 2, m.y + 4, 4, m.height - 8); ctx.fillRect(m.x + 4, m.y + m.height/2 - 2, m.width - 8, 4); });
@@ -868,7 +877,7 @@ function draw() {
     grenades.forEach(g => {
         ctx.fillStyle = "rgba(255, 0, 0, 0.35)";
         ctx.beginPath(); ctx.arc(g.x, g.y, g.radius, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = "#ff0000"; ctx.lineWidth = 2; stroke();
+        ctx.strokeStyle = "#ff0000"; ctx.lineWidth = 2; ctx.stroke();
     });
 
     drawStickman(player.x, player.y, player.color, true, player.facing === 1, player.isInvulnerable, 1, false);
