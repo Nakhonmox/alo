@@ -27,7 +27,7 @@ const playButton = {
 
 let isPaused = false;
 let showShop = false;
-let showCheats = false; // Estado para el menú de trucos
+let showCheats = false; 
 
 // Sistema de Oleadas / Jefes Especiales
 let gameTimer = 0;
@@ -41,21 +41,18 @@ let enemiesSpawnedInRound = 0;
 let isRoundBreak = false;
 let roundBreakTimer = 0; 
 
-// Estructura de las opciones del menú de intermedio
 const upgradeOptions = [
     { id: "red_heart", text: "+1 Corazón Rojo Max", color: "#ff2266", x: 0, y: 0, w: 280, h: 70 },
     { id: "blue_heart", text: "+1 Escudo Azul Max", color: "#00bfff", x: 0, y: 0, w: 280, h: 70 },
     { id: "max_ammo", text: "+10 Balas en Cargador", color: "#ffff00", x: 0, y: 0, w: 280, h: 70 }
 ];
 
-// Modificadores permanentes guardados
 const permanentUpgrades = {
     bonusMaxLives: 0,
     bonusMaxShield: 0,
     bonusMaxAmmo: 0
 };
 
-// ESTRUCTURA COMPLETA DE ARMAS DE LA TIENDA
 const weaponsCatalog = {
     pistola: { name: "Pistola Base", baseAmmo: 9, cooldown: 400, damage: 1, cost: 0, purchased: true, color: "#ffffff" },
     mp5:     { name: "Subfusil MP5", baseAmmo: 20, cooldown: 130, damage: 1, cost: 1000, purchased: false, color: "#ffff00" },
@@ -80,7 +77,6 @@ function startNextRound() {
     enemyBullets = [];
     grenades = [];
     
-    // Reiniciar los intervalos de spawn para aplicar los nuevos tiempos dinámicos de la ronda
     clearInterval(spawnEnemyInterval);
     clearInterval(spawnFlyingInterval);
     
@@ -106,7 +102,6 @@ function updatePlayerStats() {
     player.shootCooldown = currentWeaponData.cooldown;
 }
 
-// SISTEMA DE OVERSHIELD
 const shieldSystem = {
     current: 3,
     max: 3,
@@ -115,7 +110,6 @@ const shieldSystem = {
     requiredFrames: 300
 };
 
-// Configuración del Jugador
 const player = {
     x: 150,
     y: floorY - 80,
@@ -148,14 +142,46 @@ let enemies = [];
 let medkits = [];
 let dragon = null;     
 
-// Plataformas
+// ==========================================
+// CONFIGURACIÓN DE EDIFICIOS NOCTURNOS
+// ==========================================
+const buildingWidth = 320;
+const buildings = [
+    { x: -buildingWidth / 2, width: buildingWidth, height: floorY - 100, color: "#3a221d" },  // Izquierda (Mitad visible)
+    { x: canvas.width / 2 - buildingWidth / 2, width: buildingWidth, height: floorY - 50, color: "#2d2522" }, // Centro (Completo)
+    { x: canvas.width - buildingWidth / 2, width: buildingWidth, height: floorY - 150, color: "#332624" }   // Derecha (Mitad visible)
+];
+
+// Ventanas precalculadas para evitar parpadeos incoherentes
+buildings.forEach(bld => {
+    bld.windows = [];
+    let rows = Math.floor(bld.height / 50);
+    let cols = Math.floor(bld.width / 40);
+    for (let r = 1; r < rows - 1; r++) {
+        for (let c = 1; c < cols - 1; c++) {
+            bld.windows.push({
+                relX: c * 40,
+                relY: r * 50,
+                lit: Math.random() > 0.65 // 35% de ventanas encendidas
+            });
+        }
+    }
+});
+
+// Plataformas reajustadas integradas perfectamente en los edificios
 const platforms = [
-    { x: canvas.width * 0.1, y: floorY - 120, width: 200, height: 15 },
-    { x: canvas.width * 0.3, y: floorY - 240, width: 200, height: 15 },
-    { x: canvas.width * 0.5, y: floorY - 360, width: 200, height: 15 },
-    { x: canvas.width * 0.7, y: floorY - 260, width: 200, height: 15 },
-    { x: canvas.width * 0.25, y: floorY - 480, width: 250, height: 15 },
-    { x: canvas.width * 0.55, y: floorY - 500, width: 250, height: 15 }
+    // Plataformas en el edificio izquierdo
+    { x: 0, y: floorY - 140, width: 140, height: 15 },
+    { x: 40, y: floorY - 280, width: 120, height: 15 },
+    
+    // Plataformas en el edificio central
+    { x: canvas.width / 2 - 160, y: floorY - 160, width: 130, height: 15 },
+    { x: canvas.width / 2 + 30, y: floorY - 260, width: 130, height: 15 },
+    { x: canvas.width / 2 - 100, y: floorY - 400, width: 200, height: 15 },
+    
+    // Plataformas en el edificio derecho
+    { x: canvas.width - 140, y: floorY - 180, width: 140, height: 15 },
+    { x: canvas.width - 160, y: floorY - 320, width: 110, height: 15 }
 ];
 
 // Fondo (Estrellas y Decoraciones de Relleno)
@@ -171,7 +197,7 @@ for (let i = 0; i < 8; i++) {
         y: floorY - 35,
         width: 25,
         height: 35,
-        color: Math.random() > 0.4 ? "#4a4a5a" : "#2e5c1e", // Barril normal o tóxico de adorno
+        color: Math.random() > 0.4 ? "#4a4a5a" : "#2e5c1e", 
         type: Math.random() > 0.4 ? "normal" : "toxic"
     });
 }
@@ -219,7 +245,6 @@ window.addEventListener("click", e => {
     }
 });
 
-// Control de Menús, Tienda, Cheats y Movimiento
 window.addEventListener("keydown", e => {
     if (gameState !== "playing" || isRoundBreak) return; 
     
@@ -312,7 +337,6 @@ function equipWeapon(weaponId) {
     player.ammo = player.maxAmmo; 
 }
 
-// Disparar
 window.addEventListener("keydown", e => {
     if (gameState !== "playing" || isRoundBreak || isPaused) return; 
     
@@ -360,7 +384,6 @@ function startReload() {
     else player.reloadTimer = 80;
 }
 
-// Reloj interno del juego
 setInterval(() => {
     if (gameState !== "playing" || isPaused || player.lives <= 0) return; 
     
@@ -545,7 +568,6 @@ function update() {
         bullet.x += bullet.speedX;
         bullet.y += bullet.speedY;
         
-        // Colisión limpia contra el dragón para evitar desbordamiento o fallos de lectura
         if (dragonSpawned && dragon) {
             if (bullet.x > dragon.x && bullet.x < dragon.x + dragon.width &&
                 bullet.y > dragon.y && bullet.y < dragon.y + dragon.height) {
@@ -761,6 +783,7 @@ function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Fondo estelar nocturno
     ctx.fillStyle = "#ffffff"; stars.forEach(s => ctx.fillRect(s.x, s.y, s.size, s.size));
 
     if (gameState === "menu") {
@@ -789,13 +812,32 @@ function draw() {
         return; 
     }
 
+    // ==========================================
+    // RENDERIZADO DE EDIFICIOS DETRÁS DE LAS PLATAFORMAS
+    // ==========================================
+    buildings.forEach(bld => {
+        // Fachada principal oscura estilo ladrillo de noche
+        ctx.fillStyle = bld.color;
+        ctx.fillRect(bld.x, floorY - bld.height, bld.width, bld.height);
+
+        // Bordes superiores/cornisas decorativas del edificio
+        ctx.fillStyle = "#1e1513";
+        ctx.fillRect(bld.x, floorY - bld.height, bld.width, 6);
+
+        // Renderizado de ventanas cuadradas fijas
+        bld.windows.forEach(w => {
+            ctx.fillStyle = w.lit ? "#ffdd66" : "#1a1211"; // Encendidas (Amarillo cálido) o Apagadas (Oscuro)
+            ctx.fillRect(bld.x + w.relX, (floorY - bld.height) + w.relY, 16, 16);
+        });
+    });
+
+    // Montañas lejanas decorativas sobre el suelo
     ctx.fillStyle = "#111116"; ctx.beginPath(); ctx.moveTo(0, floorY); ctx.lineTo(canvas.width*0.25, floorY-120); ctx.lineTo(canvas.width*0.6, floorY); ctx.lineTo(canvas.width*0.85, floorY-180); ctx.lineTo(canvas.width, floorY); ctx.fill();
 
     // Renderizar los barriles decorativos en el fondo
     backgroundDecorations.forEach(barrel => {
         ctx.fillStyle = barrel.color;
         ctx.fillRect(barrel.x, barrel.y, barrel.width, barrel.height);
-        // Detalles de líneas de los barriles decorativos
         ctx.strokeStyle = "#111"; ctx.lineWidth = 2;
         ctx.strokeRect(barrel.x, barrel.y, barrel.width, barrel.height);
         ctx.beginPath();
@@ -809,7 +851,13 @@ function draw() {
 
     ctx.fillStyle = "#1e1e24"; ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
     ctx.fillStyle = "#00ffcc"; ctx.fillRect(0, floorY, canvas.width, 4);
-    platforms.forEach(plat => { ctx.fillStyle = "#3a3a4a"; ctx.fillRect(plat.x, plat.y, plat.width, plat.height); ctx.fillStyle = "#00ffcc"; ctx.fillRect(plat.x, plat.y, plat.width, 2); });
+
+    // Plataformas posicionadas de forma exacta en las fachadas
+    platforms.forEach(plat => { 
+        ctx.fillStyle = "#4e413d"; ctx.fillRect(plat.x, plat.y, plat.width, plat.height); 
+        ctx.fillStyle = "#ffaa44"; ctx.fillRect(plat.x, plat.y, plat.width, 2); // Iluminación superior
+    });
+
     medkits.forEach(m => { ctx.fillStyle = "#ffffff"; ctx.fillRect(m.x, m.y, m.width, m.height); ctx.fillStyle = "#ff0000"; ctx.fillRect(m.x + m.width/2 - 2, m.y + 4, 4, m.height - 8); ctx.fillRect(m.x + 4, m.y + m.height/2 - 2, m.width - 8, 4); });
 
     grenades.forEach(g => {
@@ -861,7 +909,7 @@ function draw() {
         ctx.fillStyle = "#5c008a"; ctx.beginPath(); ctx.moveTo(dragon.x + 120, dragon.y + 270); ctx.lineTo(dragon.x + 50, dragon.y + 310); ctx.lineTo(dragon.x + 30, dragon.y + 305); ctx.moveTo(dragon.x + 50, dragon.y + 310); ctx.lineTo(dragon.x + 35, dragon.y + 320); ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 4; ctx.stroke();
         ctx.fillStyle = "#222"; ctx.fillRect(canvas.width / 2 - 200, 30, 400, 20);
         ctx.fillStyle = "#9900ff"; ctx.fillRect(canvas.width / 2 - 200, 30, (dragon.lives / dragon.maxLives) * 400, 20);
-        ctx.fillStyle = "#fff"; ctx.font = "bold 14px Arial"; ctx.fillText("DRAGÓN XD", canvas.width / 2 - 60, 45);
+        ctx.fillStyle = "#fff"; ctx.font = "bold 14px Arial"; ctx.fillText("DRAGÓN SUPREMO", canvas.width / 2 - 60, 45);
     }
 
     bullets.forEach(b => { ctx.fillStyle = b.color; ctx.fillRect(b.x, b.y, b.width, b.height); });
@@ -885,13 +933,13 @@ function draw() {
         ctx.beginPath(); ctx.arc(sx-7, sy, 7, Math.PI, 0, false); ctx.arc(sx+7, sy, 7, Math.PI, 0, false); ctx.lineTo(sx, sy+12); ctx.closePath(); ctx.fill();
     }
 
+    // Textos de Ronda reubicados adecuadamente abajo para evitar solapamientos
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 24px Arial";
-    ctx.fillText(`RONDA: ${currentRound}`, 25, 45);
+    ctx.fillText(`RONDA: ${currentRound}`, 25, 100);
     ctx.font = "18px Arial"; ctx.fillStyle = "#ff3333";
-    ctx.fillText(`Enemigos restantes: ${enemiesLeftInRound > 0 ? enemiesLeftInRound : 0}`, 25, 95);
+    ctx.fillText(`Enemigos restantes: ${enemiesLeftInRound > 0 ? enemiesLeftInRound : 0}`, 25, 135);
 
-    // MENÚ DE INTERMEDIO
     if (isRoundBreak) {
         ctx.fillStyle = "rgba(12, 12, 28, 0.92)"; 
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -923,7 +971,7 @@ function draw() {
     ctx.fillText(`Arma: ${player.currentWeapon.toUpperCase()}`, 25, canvas.height - 110);
     ctx.fillText(`Munición: ${player.isReloading ? "RECARGANDO..." : player.ammo + "/" + player.maxAmmo}`, 25, canvas.height - 80);
     ctx.font = "14px Arial"; ctx.fillStyle = "#aaa";
-    ctx.fillText("Mantén 'O' quieto por 5s para recargar Overshield", 25, canvas.height - 60);
+    ctx.fillText("Mantén 'O' quieto por 5s para recargar Overshield", 25, canvas.height - 50);
 
     if (dragonWarning && !isRoundBreak) {
         ctx.fillStyle = "rgba(255, 0, 0, " + (Math.sin(Date.now() / 100) * 0.3 + 0.4) + ")"; ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -932,9 +980,6 @@ function draw() {
         ctx.textAlign = "left";
     }
 
-    // ==========================================
-    // RENDEREADO DE LA TIENDA DE ARMAS
-    // ==========================================
     if (showShop) {
         ctx.fillStyle = "rgba(10, 10, 20, 0.95)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#00ffcc"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
@@ -943,14 +988,12 @@ function draw() {
         
         ctx.font = "22px Arial";
         
-        // 1. Pistola Base
         if (player.currentWeapon === "pistola") {
             ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 1. Pistola Base", canvas.width / 2, canvas.height * 0.32);
         } else {
             ctx.fillStyle = "#ffffff"; ctx.fillText("[Presiona 1] Equipar Pistola Base (Ya Adquirida)", canvas.width / 2, canvas.height * 0.32);
         }
 
-        // 2. Subfusil MP5
         if (player.currentWeapon === "mp5") {
             ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 2. Subfusil MP5", canvas.width / 2, canvas.height * 0.41);
         } else if (weaponsCatalog.mp5.purchased) {
@@ -960,7 +1003,6 @@ function draw() {
             ctx.fillText(`[Presiona 2] Comprar Subfusil MP5 - Costo: ${weaponsCatalog.mp5.cost} pts`, canvas.width / 2, canvas.height * 0.41);
         }
 
-        // 3. Pistolas Duales
         if (player.currentWeapon === "duales") {
             ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 3. Pistolas Duales (Doble Brazo)", canvas.width / 2, canvas.height * 0.50);
         } else if (weaponsCatalog.duales.purchased) {
@@ -970,7 +1012,6 @@ function draw() {
             ctx.fillText(`[Presiona 3] Comprar Pistolas Duales - Costo: ${weaponsCatalog.duales.cost} pts`, canvas.width / 2, canvas.height * 0.50);
         }
 
-        // 4. Rifle Pesado
         if (player.currentWeapon === "rifle") {
             ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 4. Rifle Pesado", canvas.width / 2, canvas.height * 0.59);
         } else if (weaponsCatalog.rifle.purchased) {
@@ -980,7 +1021,6 @@ function draw() {
             ctx.fillText(`[Presiona 4] Comprar Rifle Pesado - Costo: ${weaponsCatalog.rifle.cost} pts`, canvas.width / 2, canvas.height * 0.59);
         }
 
-        // 5. Rifle Galil
         if (player.currentWeapon === "galil") {
             ctx.fillStyle = "#00ffcc"; ctx.fillText("[EQUIPADA ACTUALMENTE] - 5. Rifle Galil AR", canvas.width / 2, canvas.height * 0.68);
         } else if (weaponsCatalog.galil.purchased) {
@@ -994,9 +1034,6 @@ function draw() {
         ctx.textAlign = "left";
     }
 
-    // ==========================================
-    // RENDERIZADO DEL MENÚ DE TRUCOS (CHEATS)
-    // ==========================================
     if (showCheats) {
         ctx.fillStyle = "rgba(25, 10, 10, 0.96)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#ff3333"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
