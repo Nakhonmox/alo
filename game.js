@@ -14,7 +14,27 @@ const gravity = 0.6;
 const floorY = canvas.height - 60;
 
 // ==========================================
-// NUEVOS SISTEMAS: PARTÍCULAS Y TEXTOS FLOTANTES
+// NUEVO SISTEMA DE MONEDAS Y TIENDA PERMANENTE (MENÚ)
+// ==========================================
+// Guardamos datos en localStorage para que no se pierdan al morir (ya que el juego se reinicia)
+let coins = parseInt(localStorage.getItem("stickman_coins")) || 0;
+let purchasedHats = JSON.parse(localStorage.getItem("stickman_hats")) || { cowboy: false, top: false };
+let equippedHat = localStorage.getItem("stickman_equipped_hat") || "none"; // "none", "cowboy", "top"
+
+function savePersistentData() {
+    localStorage.setItem("stickman_coins", coins);
+    localStorage.setItem("stickman_hats", JSON.stringify(purchasedHats));
+    localStorage.setItem("stickman_equipped_hat", equippedHat);
+}
+
+// Botones para la tienda del menú principal
+const menuShopButton = { x: canvas.width / 2 - 100, y: canvas.height / 2 + 80, width: 200, height: 50 };
+const buyCowboyButton = { x: canvas.width / 2 - 260, y: canvas.height / 2, width: 240, height: 60 };
+const buyTopButton = { x: canvas.width / 2 + 20, y: canvas.height / 2, width: 240, height: 60 };
+const backToMenuButton = { x: canvas.width / 2 - 100, y: canvas.height / 2 + 150, width: 200, height: 50 };
+
+// ==========================================
+// PARTÍCULAS Y TEXTOS FLOTANTES
 // ==========================================
 let particles = [];
 let floatingTexts = [];
@@ -51,7 +71,7 @@ function spawnFloatingText(x, y, text, color) {
 // ==========================================
 // SISTEMA DE ESTADOS DEL JUEGO
 // ==========================================
-let gameState = "menu"; // "menu", "playing"
+let gameState = "menu"; // "menu", "menu_shop", "playing"
 
 const playButton = {
     x: canvas.width / 2 - 100,
@@ -140,6 +160,11 @@ function startNextRound() {
         specialRoundType = "none";
     }
     
+    resetIntervals();
+}
+
+// Función auxiliar para reiniciar spawn de enemigos de forma limpia
+function resetIntervals() {
     clearInterval(spawnEnemyInterval);
     clearInterval(spawnFlyingInterval);
     clearInterval(spawnShieldedInterval); 
@@ -273,13 +298,48 @@ window.addEventListener("mousemove", e => {
 
 window.addEventListener("click", e => {
     if (gameState === "menu") {
-        if (
-            mouseX >= playButton.x &&
-            mouseX <= playButton.x + playButton.width &&
-            mouseY >= playButton.y &&
-            mouseY <= playButton.y + playButton.height
-        ) {
+        // Clic en JUGAR
+        if (mouseX >= playButton.x && mouseX <= playButton.x + playButton.width &&
+            mouseY >= playButton.y && mouseY <= playButton.y + playButton.height) {
             gameState = "playing";
+        }
+        // Clic en TIENDA DEL MENÚ
+        if (mouseX >= menuShopButton.x && mouseX <= menuShopButton.x + menuShopButton.width &&
+            mouseY >= menuShopButton.y && mouseY <= menuShopButton.y + menuShopButton.height) {
+            gameState = "menu_shop";
+        }
+        return;
+    }
+
+    if (gameState === "menu_shop") {
+        // Botón Sombrero Vaquero (5,000 monedas)
+        if (mouseX >= buyCowboyButton.x && mouseX <= buyCowboyButton.x + buyCowboyButton.width &&
+            mouseY >= buyCowboyButton.y && mouseY <= buyCowboyButton.y + buyCowboyButton.height) {
+            if (!purchasedHats.cowboy && coins >= 5000) {
+                coins -= 5000;
+                purchasedHats.cowboy = true;
+                equippedHat = "cowboy";
+            } else if (purchasedHats.cowboy) {
+                equippedHat = equippedHat === "cowboy" ? "none" : "cowboy";
+            }
+            savePersistentData();
+        }
+        // Botón Sombrero de Copa (10,000 monedas)
+        if (mouseX >= buyTopButton.x && mouseX <= buyTopButton.x + buyTopButton.width &&
+            mouseY >= buyTopButton.y && mouseY <= buyTopButton.y + buyTopButton.height) {
+            if (!purchasedHats.top && coins >= 10000) {
+                coins -= 10000;
+                purchasedHats.top = true;
+                equippedHat = "top";
+            } else if (purchasedHats.top) {
+                equippedHat = equippedHat === "top" ? "none" : "top";
+            }
+            savePersistentData();
+        }
+        // Botón Volver al Menú
+        if (mouseX >= backToMenuButton.x && mouseX <= backToMenuButton.x + backToMenuButton.width &&
+            mouseY >= backToMenuButton.y && mouseY <= backToMenuButton.y + backToMenuButton.height) {
+            gameState = "menu";
         }
         return;
     }
@@ -323,6 +383,19 @@ window.addEventListener("keydown", e => {
             score += 10000; 
             scoreEl.innerText = score;
             spawnFloatingText(player.x + 20, player.y - 20, "+10000 PTS", "#ffff00");
+        }
+        // NUEVA TRAMPA: Saltear Ronda (Presionar '2')
+        if (key === "2") {
+            spawnFloatingText(canvas.width / 2, canvas.height / 2, "¡RONDA SALTEADA!", "#00ffff");
+            
+            // Forzar las variables para detonar el fin de ronda instantáneamente
+            enemiesLeftInRound = 0;
+            enemiesSpawnedInRound = getTotalEnemiesForRound(currentRound);
+            enemies = [];
+            
+            // Quitar pausa de trucos para procesar el cambio de ronda
+            showCheats = false;
+            isPaused = false;
         }
         return;
     }
@@ -631,6 +704,7 @@ function update() {
         }
     });
 
+    // RECOMPENSA DE MONEDAS AL PASAR LA RONDA
     if (enemiesLeftInRound <= 0 && !isRoundBreak) {
         isRoundBreak = true;
         roundBreakTimer = 10; 
@@ -642,6 +716,11 @@ function update() {
         dragonSpawned = false;
         dragon = null;
         specialRoundType = "none";
+        
+        // Agregar +100 monedas por sobrevivir
+        coins += 100;
+        savePersistentData();
+        spawnFloatingText(player.x + 20, player.y - 40, "+100 MONEDAS", "#00ff66");
     }
 
     if (isRoundBreak) return;
@@ -748,12 +827,11 @@ function update() {
         eb.x += eb.speedX;
         eb.y += eb.speedY;
 
-        // CORRECCIÓN: Filtrar de forma segura si viene del dragón para romper plataformas
         if (eb.isDragonFire) { 
             platforms.forEach(plat => {
                 if (!plat.destroyed && eb.x > plat.x && eb.x < plat.x + plat.width && eb.y > plat.y - 15 && eb.y < plat.y + plat.height + 15) {
                     plat.destroyed = true;
-                    plat.repairTimer = 3600; // 1 minuto exacto a 60 FPS
+                    plat.repairTimer = 3600; 
                     spawnParticles(plat.x + plat.width / 2, plat.y, "#ff4500", 30, true);
                     spawnFloatingText(plat.x + plat.width / 2, plat.y - 20, "¡PLATAFORMA ROTA!", "#ff3333");
                 }
@@ -878,12 +956,63 @@ function checkCollision(rect1, rect2) {
     return rect1.x < rect2.x + rect2.width && rect1.x + rect1.width > rect2.x && rect1.y < rect2.y + rect2.height && rect1.y + rect1.height > rect2.y;
 }
 
+// RENDERIZADO DEL SOMBRERO COSMÉTICO
+function drawHat(cx, y, scale, facingRight) {
+    if (equippedHat === "none") return;
+
+    ctx.save();
+    // Ajustar ligeramente el sombrero según la escala del stickman
+    let hatY = y + (5 * scale);
+    let hatX = cx;
+
+    if (equippedHat === "cowboy") {
+        ctx.fillStyle = "#8b4513"; // Marrón
+        ctx.strokeStyle = "#5c2e0b";
+        ctx.lineWidth = 2;
+        // Ala del sombrero
+        ctx.beginPath();
+        ctx.ellipse(hatX, hatY + 2, 16 * scale, 4 * scale, 0, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+        // Copa del sombrero
+        ctx.beginPath();
+        ctx.moveTo(hatX - 9 * scale, hatY + 2);
+        ctx.quadraticCurveTo(hatX - 9 * scale, hatY - 12 * scale, hatX - 6 * scale, hatY - 14 * scale);
+        ctx.lineTo(hatX + 6 * scale, hatY - 14 * scale);
+        ctx.quadraticCurveTo(hatX + 9 * scale, hatY - 12 * scale, hatX + 9 * scale, hatY + 2);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        // Detalle cinta negra
+        ctx.fillStyle = "#111111";
+        ctx.fillRect(hatX - 9 * scale, hatY - 2, 18 * scale, 3 * scale);
+    } 
+    else if (equippedHat === "top") {
+        ctx.fillStyle = "#1a1a1a"; // Negro elegante
+        ctx.strokeStyle = "#000000";
+        ctx.lineWidth = 2;
+        // Ala del sombrero
+        ctx.fillRect(hatX - 15 * scale, hatY, 30 * scale, 3 * scale);
+        // Copa cilindrica
+        ctx.fillRect(hatX - 9 * scale, hatY - 18 * scale, 18 * scale, 18 * scale);
+        // Detalle cinta roja
+        ctx.fillStyle = "#ff0000";
+        ctx.fillRect(hatX - 9 * scale, hatY - 3, 18 * scale, 3 * scale);
+    }
+
+    ctx.restore();
+}
+
 function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 1, isFlying = false, isShielded = false) {
     if (isInvulnerable && Math.floor(Date.now() / 100) % 2 === 0) return;
     ctx.strokeStyle = color; ctx.lineWidth = 3 * scale; ctx.fillStyle = color;
     const w = 40 * scale; const h = 80 * scale; const cx = x + w / 2;
     
     ctx.beginPath(); ctx.arc(cx, y + (15 * scale), 10 * scale, 0, Math.PI * 2); ctx.stroke();
+    
+    // DIBUJAR ACCESORIO (Sólo para el jugador principal 'hasGun')
+    if (hasGun) {
+        drawHat(cx, y, scale, facingRight);
+    }
+
     ctx.beginPath(); ctx.moveTo(cx, y + (25 * scale)); ctx.lineTo(cx, y + (55 * scale)); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(cx, y + (55 * scale)); ctx.lineTo(cx - (10 * scale), y + h); ctx.moveTo(cx, y + (55 * scale)); ctx.lineTo(cx + (10 * scale), y + h); ctx.stroke();
     
@@ -958,29 +1087,101 @@ function draw() {
 
     ctx.fillStyle = "#ffffff"; stars.forEach(s => ctx.fillRect(s.x, s.y, s.size, s.size));
 
+    // PANTALLA: MENÚ PRINCIPAL
     if (gameState === "menu") {
         ctx.fillStyle = "rgba(10, 10, 20, 0.8)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#00ffcc"; ctx.font = "bold 60px Arial";
         ctx.shadowColor = "#00ffcc"; ctx.shadowBlur = 10; ctx.textAlign = "center";
-        ctx.fillText("STICKMAN SURVIVOR", canvas.width / 2, canvas.height * 0.35);
+        ctx.fillText("STICKMAN SURVIVOR", canvas.width / 2, canvas.height * 0.28);
         ctx.shadowBlur = 0; 
 
-        let isHover = mouseX >= playButton.x && mouseX <= playButton.x + playButton.width &&
-                      mouseY >= playButton.y && mouseY <= playButton.y + playButton.height;
+        // Monedas permanentes arriba a la derecha
+        ctx.fillStyle = "#ffd700"; ctx.font = "bold 22px Arial";
+        ctx.fillText(`🪙 Monedas Totales: ${coins}`, canvas.width - 200, 45);
 
-        ctx.fillStyle = isHover ? "#00ffcc" : "#3a3a4a";
+        // Botón JUGAR
+        let isHoverPlay = mouseX >= playButton.x && mouseX <= playButton.x + playButton.width &&
+                          mouseY >= playButton.y && mouseY <= playButton.y + playButton.height;
+        ctx.fillStyle = isHoverPlay ? "#00ffcc" : "#3a3a4a";
         ctx.fillRect(playButton.x, playButton.y, playButton.width, playButton.height);
-        ctx.strokeStyle = "#00ffcc"; ctx.lineWidth = 3;
-        ctx.strokeRect(playButton.x, playButton.y, playButton.width, playButton.height);
-        ctx.fillStyle = isHover ? "#000000" : "#ffffff"; ctx.font = "bold 24px Arial";
-        ctx.fillText("PLAY", canvas.width / 2, canvas.height / 2 + 38);
+        ctx.strokeStyle = "#00ffcc"; ctx.strokeRect(playButton.x, playButton.y, playButton.width, playButton.height);
+        ctx.fillStyle = isHoverPlay ? "#000000" : "#ffffff"; ctx.font = "bold 24px Arial";
+        ctx.fillText("PLAY", canvas.width / 2, playButton.y + 38);
+
+        // Botón TIENDA DE SOMBREROS
+        let isHoverShop = mouseX >= menuShopButton.x && mouseX <= menuShopButton.x + menuShopButton.width &&
+                          mouseY >= menuShopButton.y && mouseY <= menuShopButton.y + menuShopButton.height;
+        ctx.fillStyle = isHoverShop ? "#ffaa00" : "#2a2a3a";
+        ctx.fillRect(menuShopButton.x, menuShopButton.y, menuShopButton.width, menuShopButton.height);
+        ctx.strokeStyle = "#ffaa00"; ctx.strokeRect(menuShopButton.x, menuShopButton.y, menuShopButton.width, menuShopButton.height);
+        ctx.fillStyle = isHoverShop ? "#000000" : "#ffffff"; ctx.font = "bold 18px Arial";
+        ctx.fillText("🤠 TIENDA DE SOMBREROS", canvas.width / 2, menuShopButton.y + 32);
+
         ctx.fillStyle = "#888888"; ctx.font = "16px Arial";
-        ctx.fillText("Controles: A/D (Moverse) - W (Saltar) - Espacio (Disparar) - T (Tienda) - M (Cheats) - U (Pack-A-Punch)", canvas.width / 2, canvas.height * 0.75);
+        ctx.fillText("Controles: A/D (Moverse) - W (Saltar) - Espacio (Disparar) - T (Tienda) - M (Cheats) - U (Pack-A-Punch)", canvas.width / 2, canvas.height * 0.85);
         ctx.textAlign = "left"; 
         return; 
     }
 
+    // PANTALLA: TIENDA DEL MENÚ PRINCIPAL
+    if (gameState === "menu_shop") {
+        ctx.fillStyle = "rgba(12, 10, 25, 0.95)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.fillStyle = "#ffaa00"; ctx.font = "bold 45px Arial"; ctx.textAlign = "center";
+        ctx.fillText("TIENDA DE ACCESORIOS PERMANENTES", canvas.width / 2, canvas.height * 0.15);
+        
+        ctx.fillStyle = "#ffd700"; ctx.font = "bold 26px Arial";
+        ctx.fillText(`Tus Monedas: 🪙 ${coins}`, canvas.width / 2, canvas.height * 0.23);
+
+        // CARD SOMBRERO VAQUERO
+        let isHoverCowboy = mouseX >= buyCowboyButton.x && mouseX <= buyCowboyButton.x + buyCowboyButton.width &&
+                             mouseY >= buyCowboyButton.y && mouseY <= buyCowboyButton.y + buyCowboyButton.height;
+        ctx.fillStyle = isHoverCowboy ? "#3e2f25" : "#1e1a15";
+        ctx.fillRect(buyCowboyButton.x, buyCowboyButton.y, buyCowboyButton.width, buyCowboyButton.height);
+        ctx.strokeStyle = equippedHat === "cowboy" ? "#00ffcc" : "#8b4513";
+        ctx.lineWidth = equippedHat === "cowboy" ? 4 : 2;
+        ctx.strokeRect(buyCowboyButton.x, buyCowboyButton.y, buyCowboyButton.width, buyCowboyButton.height);
+        
+        ctx.fillStyle = "#ffffff"; ctx.font = "bold 16px Arial";
+        let textCowboy = "Comprar Vaquero (5,000 🪙)";
+        if (purchasedHats.cowboy) textCowboy = equippedHat === "cowboy" ? "DESEQUIPAR" : "EQUIPAR";
+        ctx.fillText(textCowboy, buyCowboyButton.x + buyCowboyButton.width / 2, buyCowboyButton.y + 35);
+        ctx.font = "14px Arial"; ctx.fillStyle = "#8b4513";
+        ctx.fillText("Sombrero de Vaquero", buyCowboyButton.x + buyCowboyButton.width / 2, buyCowboyButton.y - 15);
+
+        // CARD SOMBRERO DE COPA
+        let isHoverTop = mouseX >= buyTopButton.x && mouseX <= buyTopButton.x + buyTopButton.width &&
+                          mouseY >= buyTopButton.y && mouseY <= buyTopButton.y + buyTopButton.height;
+        ctx.fillStyle = isHoverTop ? "#2a2a2a" : "#151515";
+        ctx.fillRect(buyTopButton.x, buyTopButton.y, buyTopButton.width, buyTopButton.height);
+        ctx.strokeStyle = equippedHat === "top" ? "#00ffcc" : "#ffffff";
+        ctx.lineWidth = equippedHat === "top" ? 4 : 2;
+        ctx.strokeRect(buyTopButton.x, buyTopButton.y, buyTopButton.width, buyTopButton.height);
+        
+        ctx.fillStyle = "#ffffff"; ctx.font = "bold 16px Arial";
+        let textTop = "Comprar De Copa (10,000 🪙)";
+        if (purchasedHats.top) textTop = equippedHat === "top" ? "DESEQUIPAR" : "EQUIPAR";
+        ctx.fillText(textTop, buyTopButton.x + buyTopButton.width / 2, buyTopButton.y + 35);
+        ctx.font = "14px Arial"; ctx.fillStyle = "#aaaaaa";
+        ctx.fillText("Sombrero de Copa Fino", buyTopButton.x + buyTopButton.width / 2, buyTopButton.y - 15);
+
+        // BOTÓN VOLVER
+        let isHoverBack = mouseX >= backToMenuButton.x && mouseX <= backToMenuButton.x + backToMenuButton.width &&
+                           mouseY >= backToMenuButton.y && mouseY <= backToMenuButton.y + backToMenuButton.height;
+        ctx.fillStyle = isHoverBack ? "#ffffff" : "#3a3a4a";
+        ctx.fillRect(backToMenuButton.x, backToMenuButton.y, backToMenuButton.width, backToMenuButton.height);
+        ctx.fillStyle = isHoverBack ? "#000000" : "#ffffff"; ctx.font = "bold 16px Arial";
+        ctx.fillText("VOLVER AL MENÚ", canvas.width / 2, backToMenuButton.y + 32);
+
+        ctx.textAlign = "left";
+        return;
+    }
+
+    // ==========================================
+    // DIBUJADO DE ESCENARIO IN-GAME
+    // ==========================================
     buildings.forEach(bld => {
         ctx.fillStyle = bld.color; ctx.fillRect(bld.x, floorY - bld.height, bld.width, bld.height);
         ctx.fillStyle = "#1e1513"; ctx.fillRect(bld.x, floorY - bld.height, bld.width, 6);
@@ -1100,7 +1301,6 @@ function draw() {
         } else { ctx.fillRect(eb.x, eb.y, eb.width, eb.height); }
     });
 
-    // DIBUJAR PARTÍCULAS (Mecánica 1)
     particles.forEach(p => {
         ctx.save();
         ctx.globalAlpha = p.alpha;
@@ -1120,7 +1320,6 @@ function draw() {
         ctx.restore();
     });
 
-    // DIBUJAR NÚMEROS FLOTANTES (Mecánica 2)
     floatingTexts.forEach(ft => {
         ctx.save();
         ctx.globalAlpha = ft.alpha;
@@ -1130,7 +1329,6 @@ function draw() {
         ctx.restore();
     });
 
-    // SISTEMA DE RONDA DE OSCURIDAD (Mecánica 5)
     if (specialRoundType === "darkness") {
         ctx.save();
         ctx.fillStyle = "rgba(0, 0, 0, 0.96)";
@@ -1163,6 +1361,9 @@ function draw() {
     ctx.fillText(`RONDA: ${currentRound} ${specialRoundType === 'speed' ? '[VELOCIDAD]' : (specialRoundType === 'darkness' ? '[OSCURIDAD]' : '')}`, 25, 100);
     ctx.font = "18px Arial"; ctx.fillStyle = "#ff3333";
     ctx.fillText(`Enemigos restantes: ${enemiesLeftInRound > 0 ? enemiesLeftInRound : 0}`, 25, 135);
+    
+    // UI De monedas del jugador en partida
+    ctx.fillStyle = "#ffd700"; ctx.fillText(`🪙 Monedas: ${coins}`, 25, 165);
 
     if (isRoundBreak) {
         ctx.fillStyle = "rgba(12, 12, 28, 0.92)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1240,7 +1441,11 @@ function draw() {
         ctx.fillText("MENÚ DE TRUCOS / CHEATS (Juego Pausado)", canvas.width / 2, canvas.height * 0.2);
         ctx.fillStyle = "#ffffff"; ctx.font = "24px Arial"; ctx.fillText(`Puntuación Actual: ${score} pts`, canvas.width / 2, canvas.height * 0.28);
         ctx.font = "22px Arial"; ctx.fillStyle = "#ffaa00";
-        ctx.fillText("[Presiona 1] Añadir +10,000 Puntos Instantáneos", canvas.width / 2, canvas.height * 0.45);
+        ctx.fillText("[Presiona 1] Añadir +10,000 Puntos Instantáneos", canvas.width / 2, canvas.height * 0.42);
+        // UI DE LA NUEVA TRAMPA
+        ctx.fillStyle = "#00ffff";
+        ctx.fillText("[Presiona 2] Avanzar / Saltear Siguiente Ronda (+100 Monedas)", canvas.width / 2, canvas.height * 0.50);
+        
         ctx.fillStyle = "#aaa"; ctx.font = "18px Arial"; ctx.fillText("Presiona 'M' de nuevo para cerrar el menú de trucos", canvas.width / 2, canvas.height * 0.75);
         ctx.textAlign = "left";
     }
