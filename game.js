@@ -280,8 +280,6 @@ window.addEventListener("click", e => {
             mouseY <= playButton.y + playButton.height
         ) {
             gameState = "playing";
-            currentRound = 0; 
-            startNextRound();
         }
         return;
     }
@@ -325,12 +323,6 @@ window.addEventListener("keydown", e => {
             score += 10000; 
             scoreEl.innerText = score;
             spawnFloatingText(player.x + 20, player.y - 20, "+10000 PTS", "#ffff00");
-        }
-        if (key === "2") {
-            enemiesLeftInRound = 0; // Fuerza a que la ronda actual termine de inmediato
-            showCheats = false;    // Cierra el menú de trucos
-            isPaused = false;      // Despausa el juego para que procese el cambio de ronda
-            spawnFloatingText(player.x + 20, player.y - 20, "¡RONDA SALTADA!", "#00ffcc");
         }
         return;
     }
@@ -499,7 +491,7 @@ function spawnEnemy() {
         lastGrenade: Date.now() + Math.random() * 2000
     });
 }
-let spawnEnemyInterval; 
+let spawnEnemyInterval = setInterval(spawnEnemy, 2500); 
 
 function sampleFlyingSpawn() {
     let maxForThisRound = getTotalEnemiesForRound(currentRound);
@@ -532,7 +524,7 @@ function spawnFlyingEnemy() {
         maxLives: isSpeedRound ? 1 : (1 + extraHealth)
     });
 }
-let spawnFlyingInterval;
+let spawnFlyingInterval = setInterval(spawnFlyingEnemy, 4000);
 
 function spawnShieldedEnemy() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return;
@@ -556,7 +548,7 @@ function spawnShieldedEnemy() {
         lastGrenade: Date.now() + Math.random() * 3000
     });
 }
-let spawnShieldedInterval;
+let spawnShieldedInterval = setInterval(spawnShieldedEnemy, 10000);
 
 function spawnBoss() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak || specialRoundType === "speed") return; 
@@ -756,11 +748,12 @@ function update() {
         eb.x += eb.speedX;
         eb.y += eb.speedY;
 
+        // CORRECCIÓN: Filtrar de forma segura si viene del dragón para romper plataformas
         if (eb.isDragonFire) { 
             platforms.forEach(plat => {
                 if (!plat.destroyed && eb.x > plat.x && eb.x < plat.x + plat.width && eb.y > plat.y - 15 && eb.y < plat.y + plat.height + 15) {
                     plat.destroyed = true;
-                    plat.repairTimer = 3600; 
+                    plat.repairTimer = 3600; // 1 minuto exacto a 60 FPS
                     spawnParticles(plat.x + plat.width / 2, plat.y, "#ff4500", 30, true);
                     spawnFloatingText(plat.x + plat.width / 2, plat.y - 20, "¡PLATAFORMA ROTA!", "#ff3333");
                 }
@@ -1027,8 +1020,10 @@ function draw() {
     ctx.fillStyle = Math.floor(Date.now() / 250) % 2 === 0 ? "#00ffff" : "#ff00ff";
     ctx.fillRect(packAPunch.x + 8, packAPunch.y + 10, 8, 8); ctx.fillRect(packAPunch.x + packAPunch.width - 16, packAPunch.y + 10, 8, 8);
 
-    nearPackAPunch = (playerCenterX > packAPunch.x - 30 && playerCenterX < packAPunch.x + packAPunch.width + 30 &&
-                      playerCenterY > packAPunch.y - 30 && playerCenterY < packAPunch.y + packAPunch.height + 30);
+    let playerCenterX = player.x + player.width / 2;
+    let playerCenterY = player.y + player.height / 2;
+    let nearPackAPunch = (playerCenterX > packAPunch.x - 30 && playerCenterX < packAPunch.x + packAPunch.width + 30 &&
+                          playerCenterY > packAPunch.y - 30 && playerCenterY < packAPunch.y + packAPunch.height + 30);
     if (nearPackAPunch && !packAPunch.isUpgrading) {
         ctx.fillStyle = "#ffffff"; ctx.font = "bold 13px Arial"; ctx.textAlign = "center";
         ctx.fillText(score >= packAPunch.cost ? "[Mantén U] Mejorar Arma (10k pts)" : "Pack-A-Punch (10,000 pts)", packAPunch.x + packAPunch.width/2, packAPunch.y - 12);
@@ -1076,7 +1071,7 @@ function draw() {
         ctx.save();
         let firePulse = Math.sin(Date.now() / 150) * 20;
         ctx.fillStyle = "#4a0072"; ctx.beginPath(); ctx.moveTo(canvas.width, dragon.y + 150); ctx.lineTo(dragon.x + 180, dragon.y + 20); ctx.lineTo(dragon.x + 220, dragon.y + 180); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = "#5c008a"; ctx.beginPath(); ctx.moveTo(canvas.width, dragon.y + 100); quadraticCurveTo(dragon.x + 120, dragon.y + 150, dragon.x + 100, dragon.y + 250); ctx.lineTo(canvas.width, dragon.y + 380); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = "#5c008a"; ctx.beginPath(); ctx.moveTo(canvas.width, dragon.y + 100); ctx.quadraticCurveTo(dragon.x + 120, dragon.y + 150, dragon.x + 100, dragon.y + 250); ctx.lineTo(canvas.width, dragon.y + 380); ctx.closePath(); ctx.fill();
         ctx.strokeStyle = "#7b00b8"; ctx.lineWidth = 3;
         for(let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc(dragon.x + 160 + (i*30), dragon.y + 200 + (i*20), 25, 0, Math.PI); ctx.stroke(); }
         ctx.fillStyle = "#6a009c"; ctx.beginPath(); ctx.moveTo(dragon.x + 140, dragon.y + 230); ctx.quadraticCurveTo(dragon.x + 60, dragon.y + 150, dragon.x + 40, dragon.y + 100); ctx.lineTo(dragon.x - 20, dragon.y + 80); ctx.lineTo(dragon.x + 30, dragon.y + 130); ctx.lineTo(dragon.x + 100, dragon.y + 160); ctx.quadraticCurveTo(dragon.x + 110, dragon.y + 200, dragon.x + 140, dragon.y + 250); ctx.closePath(); ctx.fill();
@@ -1105,7 +1100,7 @@ function draw() {
         } else { ctx.fillRect(eb.x, eb.y, eb.width, eb.height); }
     });
 
-    // DIBUJAR PARTÍCULAS
+    // DIBUJAR PARTÍCULAS (Mecánica 1)
     particles.forEach(p => {
         ctx.save();
         ctx.globalAlpha = p.alpha;
@@ -1125,7 +1120,7 @@ function draw() {
         ctx.restore();
     });
 
-    // DIBUJAR NÚMEROS FLOTANTES
+    // DIBUJAR NÚMEROS FLOTANTES (Mecánica 2)
     floatingTexts.forEach(ft => {
         ctx.save();
         ctx.globalAlpha = ft.alpha;
@@ -1135,7 +1130,7 @@ function draw() {
         ctx.restore();
     });
 
-    // SISTEMA DE RONDA DE OSCURIDAD
+    // SISTEMA DE RONDA DE OSCURIDAD (Mecánica 5)
     if (specialRoundType === "darkness") {
         ctx.save();
         ctx.fillStyle = "rgba(0, 0, 0, 0.96)";
@@ -1244,14 +1239,8 @@ function draw() {
         ctx.fillStyle = "#ff3333"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
         ctx.fillText("MENÚ DE TRUCOS / CHEATS (Juego Pausado)", canvas.width / 2, canvas.height * 0.2);
         ctx.fillStyle = "#ffffff"; ctx.font = "24px Arial"; ctx.fillText(`Puntuación Actual: ${score} pts`, canvas.width / 2, canvas.height * 0.28);
-        ctx.font = "22px Arial"; 
-        
-        ctx.fillStyle = "#ffaa00";
-        ctx.fillText("[Presiona 1] Añadir +10,000 Puntos Instantáneos", canvas.width / 2, canvas.height * 0.42);
-        
-        ctx.fillStyle = "#00ffcc";
-        ctx.fillText("[Presiona 2] Saltar Ronda Actual Inmediatamente", canvas.width / 2, canvas.height * 0.50);
-        
+        ctx.font = "22px Arial"; ctx.fillStyle = "#ffaa00";
+        ctx.fillText("[Presiona 1] Añadir +10,000 Puntos Instantáneos", canvas.width / 2, canvas.height * 0.45);
         ctx.fillStyle = "#aaa"; ctx.font = "18px Arial"; ctx.fillText("Presiona 'M' de nuevo para cerrar el menú de trucos", canvas.width / 2, canvas.height * 0.75);
         ctx.textAlign = "left";
     }
