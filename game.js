@@ -30,7 +30,7 @@ function spawnParticles(x, y, color, count, isDeath = false) {
             color: color,
             alpha: 1,
             decay: Math.random() * 0.02 + 0.01,
-            isChunk: isDeath && Math.random() > 0.4, // Trozos de extremidades
+            isChunk: isDeath && Math.random() > 0.4, // Trozos de stickman
             chunkType: Math.floor(Math.random() * 3) // 0: cabeza, 1: brazo, 2: torso
         });
     }
@@ -44,7 +44,7 @@ function spawnFloatingText(x, y, text, color) {
         color: color,
         alpha: 1,
         vy: -1.5,
-        life: 45 // frames de vida
+        life: 45
     });
 }
 
@@ -128,7 +128,7 @@ function startNextRound() {
     particles = [];
     floatingTexts = [];
 
-    // Comprobación de Lotería de Ronda Especial (Múltiplos de 7)
+    // Lotería de Ronda Especial en múltiplos de 7
     if (currentRound % 7 === 0) {
         specialRoundType = Math.random() > 0.5 ? "speed" : "darkness";
         if (specialRoundType === "speed") {
@@ -154,22 +154,12 @@ function startNextRound() {
     }
 
     if (specialRoundType === "speed") {
-        // En ronda de velocidad solo salen voladores extremadamente rápido
         spawnFlyingInterval = setInterval(spawnFlyingEnemy, 1200);
     } else {
         spawnEnemyInterval = setInterval(spawnEnemy, baseEnemyTime);
         spawnFlyingInterval = setInterval(spawnFlyingEnemy, baseFlyingTime);
         spawnShieldedInterval = setInterval(spawnShieldedEnemy, 10000);
     }
-}
-
-function updatePlayerStats() {
-    player.maxLives = 3 + permanentUpgrades.bonusMaxLives;
-    shieldSystem.max = 3 + permanentUpgrades.bonusMaxShield;
-    
-    const currentWeaponData = weaponsCatalog[player.currentWeapon];
-    player.maxAmmo = currentWeaponData.baseAmmo + permanentUpgrades.bonusMaxAmmo;
-    player.shootCooldown = currentWeaponData.cooldown;
 }
 
 const shieldSystem = {
@@ -205,6 +195,15 @@ const player = {
     shootCooldown: 400 
 };
 
+function updatePlayerStats() {
+    player.maxLives = 3 + permanentUpgrades.bonusMaxLives;
+    shieldSystem.max = 3 + permanentUpgrades.bonusMaxShield;
+    
+    const currentWeaponData = weaponsCatalog[player.currentWeapon];
+    player.maxAmmo = currentWeaponData.baseAmmo + permanentUpgrades.bonusMaxAmmo;
+    player.shootCooldown = currentWeaponData.cooldown;
+}
+
 let bullets = [];
 let enemyBullets = []; 
 let grenades = [];     
@@ -235,7 +234,6 @@ buildings.forEach(bld => {
     }
 });
 
-// NUEVO: Se añade el estado 'destroyed' y 'repairTimer' para el comportamiento destructible
 const platforms = [
     { x: buildings[0].x - 20, y: floorY - 150, width: 140, height: 15, destroyed: false, repairTimer: 0 },
     { x: buildings[0].x + 140, y: floorY - 270, width: 140, height: 15, destroyed: false, repairTimer: 0 },
@@ -268,7 +266,7 @@ for (let i = 0; i < 8; i++) {
 window.addEventListener("mousemove", e => {
     mouseX = e.clientX;
     mouseY = e.clientY;
-    if (!isRoundBreak && !isPaused && !packAPunch.isUpgrading) {
+    if (gameState === "playing" && !isRoundBreak && !isPaused && !packAPunch.isUpgrading) {
         player.facing = (mouseX >= player.x + player.width / 2) ? 1 : -1;
     }
 });
@@ -309,14 +307,14 @@ window.addEventListener("click", e => {
 });
 
 window.addEventListener("keydown", e => {
-    if (gameState !== "playing" || isRoundBreak) return; 
-    
     const key = e.key.toLowerCase();
 
     if (key === "m") {
-        showCheats = !showCheats;
-        showShop = false; 
-        isPaused = showCheats;
+        if (gameState === "playing") {
+            showCheats = !showCheats;
+            showShop = false; 
+            isPaused = showCheats;
+        }
         return;
     }
 
@@ -330,8 +328,11 @@ window.addEventListener("keydown", e => {
     }
 
     if (key === "t") { 
-        showShop = !showShop; 
-        isPaused = showShop; 
+        if (gameState === "playing") {
+            showShop = !showShop; 
+            showCheats = false;
+            isPaused = showShop; 
+        }
         return; 
     }
     
@@ -368,7 +369,9 @@ window.addEventListener("keydown", e => {
         return;
     }
 
-    keys[e.key === " " ? "space" : key] = true;
+    if (gameState === "playing" && !isRoundBreak) {
+        keys[e.key === " " ? "space" : key] = true;
+    }
 });
 
 window.addEventListener("keyup", e => {
@@ -467,7 +470,7 @@ function sampleEnemySpawn() {
 
 function spawnEnemy() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return; 
-    if (specialRoundType === "speed") return; // No terrestres en ronda de velocidad
+    if (specialRoundType === "speed") return; 
     if (!sampleEnemySpawn()) return;
 
     let extraHealth = Math.floor(currentRound / 5);
@@ -512,12 +515,12 @@ function spawnFlyingEnemy() {
         x: Math.random() > 0.5 ? canvas.width + 20 : -50,
         y: Math.random() * (floorY - 250) + 50, 
         width: 40, height: 60,
-        speed: isSpeedRound ? 4.8 : 2.2, // El doble de rápidos
+        speed: isSpeedRound ? 4.8 : 2.2, 
         color: isSpeedRound ? "#ff1493" : "#ff8c00",
         isBoss: false,
         isFlying: true,
         isShielded: false,
-        lives: isSpeedRound ? 1 : (1 + extraHealth), // 1 solo punto de vida en ronda velocidad
+        lives: isSpeedRound ? 1 : (1 + extraHealth), 
         maxLives: isSpeedRound ? 1 : (1 + extraHealth)
     });
 }
@@ -604,7 +607,7 @@ function update() {
         let p = particles[i];
         p.x += p.vx;
         p.y += p.vy;
-        if (p.isChunk) { p.vy += 0.3; } // Gravedad a los trozos de cuerpo
+        if (p.isChunk) { p.vy += 0.3; } 
         p.alpha -= p.decay;
         if (p.alpha <= 0) particles.splice(i, 1);
     }
@@ -617,7 +620,7 @@ function update() {
         if (ft.life <= 0) floatingTexts.splice(i, 1);
     }
 
-    // Actualización de temporizadores de reparación de plataformas
+    // Temporizadores de regeneración de plataformas
     platforms.forEach(plat => {
         if (plat.destroyed) {
             plat.repairTimer--;
@@ -666,7 +669,7 @@ function update() {
         if (player.invulnerableTimer <= 0) player.isInvulnerable = false;
     }
 
-    // LÓGICA DE INTERACCIÓN PACK-A-PUNCH
+    // PACK-A-PUNCH
     let playerCenterX = player.x + player.width / 2;
     let playerCenterY = player.y + player.height / 2;
     let nearPackAPunch = (playerCenterX > packAPunch.x - 30 && playerCenterX < packAPunch.x + packAPunch.width + 30 &&
@@ -745,12 +748,12 @@ function update() {
         eb.x += eb.speedX;
         eb.y += eb.speedY;
 
-        // NUEVO: Fuego del Dragón destruye plataformas
-        if (eb.width > 20) { // Indica proyectil de dragón
+        // CORRECCIÓN: Filtrar de forma segura si viene del dragón para romper plataformas
+        if (eb.isDragonFire) { 
             platforms.forEach(plat => {
-                if (!plat.destroyed && eb.x > plat.x && eb.x < plat.x + plat.width && eb.y > plat.y - 10 && eb.y < plat.y + plat.height + 10) {
+                if (!plat.destroyed && eb.x > plat.x && eb.x < plat.x + plat.width && eb.y > plat.y - 15 && eb.y < plat.y + plat.height + 15) {
                     plat.destroyed = true;
-                    plat.repairTimer = 3600; // 1 minuto a 60 FPS
+                    plat.repairTimer = 3600; // 1 minuto exacto a 60 FPS
                     spawnParticles(plat.x + plat.width / 2, plat.y, "#ff4500", 30, true);
                     spawnFloatingText(plat.x + plat.width / 2, plat.y - 20, "¡PLATAFORMA ROTA!", "#ff3333");
                 }
@@ -821,7 +824,7 @@ function update() {
                         enemyBullets.push({
                             x: enemy.x + (enemy.facing === 1 ? enemy.width : 0), y: enemy.y + 60,
                             speedX: enemy.facing * 8, speedY: (Math.random() - 0.5) * 4,
-                            width: 14, height: 14, color: "#ffaa00", damage: 2 
+                            width: 14, height: 14, color: "#ffaa00", damage: 2, isDragonFire: false 
                         });
                     }
                 }
@@ -834,7 +837,6 @@ function update() {
             if (checkCollision(bullet, enemy)) {
                 enemy.lives -= bullet.damage; 
                 
-                // Efecto: Chispas si es robot blindado o sangre pixelada roja si es normal/volador
                 let particleColor = enemy.isShielded ? "#00bfff" : "#ff0033";
                 spawnParticles(bullet.x, bullet.y, particleColor, 6);
                 spawnFloatingText(enemy.x + enemy.width / 2, enemy.y, `-${bullet.damage}`, "#ff3333");
@@ -846,9 +848,7 @@ function update() {
                     score += ptsGained; 
                     scoreEl.innerText = score;
 
-                    // Sangre y explosión completa de cuerpo
                     spawnParticles(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, particleColor, 25, true);
-                    // Número flotante de recompensa
                     spawnFloatingText(enemy.x + enemy.width / 2, enemy.y - 20, `+${ptsGained}`, "#00ff66");
 
                     enemies.splice(eIndex, 1);
@@ -866,7 +866,7 @@ function update() {
             enemyBullets.push({
                 x: dragon.x + 30, y: dragon.y + 120,
                 speedX: Math.cos(angle) * 8, speedY: Math.sin(angle) * 8,
-                width: 35, height: 35, color: "#ff4500", damage: 1 
+                width: 35, height: 35, color: "#ff4500", damage: 1, isDragonFire: true 
             });
         }
     }
@@ -1004,24 +1004,24 @@ function draw() {
     ctx.fillStyle = "#1e1e24"; ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
     ctx.fillStyle = "#00ffcc"; ctx.fillRect(0, floorY, canvas.width, 4);
 
-    // Dibujo de Plataformas (Solo si no están destruidas)
     platforms.forEach(plat => { 
         if (!plat.destroyed) {
             ctx.fillStyle = "#4e413d"; ctx.fillRect(plat.x, plat.y, plat.width, plat.height); 
             ctx.fillStyle = "#ffaa44"; ctx.fillRect(plat.x, plat.y, plat.width, 2); 
         } else {
-            // Efecto fantasma / indicador de regeneración de plataforma rota
             ctx.fillStyle = "rgba(255, 69, 0, 0.15)";
             ctx.fillRect(plat.x, plat.y, plat.width, plat.height);
         }
     });
 
-    // RENDERIZADO VISUAL DEL PACK-A-PUNCH
+    // PACK-A-PUNCH
     ctx.fillStyle = "#4b0082"; ctx.fillRect(packAPunch.x, packAPunch.y, packAPunch.width, packAPunch.height);
     ctx.strokeStyle = "#da70d6"; ctx.lineWidth = 3; ctx.strokeRect(packAPunch.x, packAPunch.y, packAPunch.width, packAPunch.height);
     ctx.fillStyle = Math.floor(Date.now() / 250) % 2 === 0 ? "#00ffff" : "#ff00ff";
     ctx.fillRect(packAPunch.x + 8, packAPunch.y + 10, 8, 8); ctx.fillRect(packAPunch.x + packAPunch.width - 16, packAPunch.y + 10, 8, 8);
 
+    let playerCenterX = player.x + player.width / 2;
+    let playerCenterY = player.y + player.height / 2;
     let nearPackAPunch = (playerCenterX > packAPunch.x - 30 && playerCenterX < packAPunch.x + packAPunch.width + 30 &&
                           playerCenterY > packAPunch.y - 30 && playerCenterY < packAPunch.y + packAPunch.height + 30);
     if (nearPackAPunch && !packAPunch.isUpgrading) {
@@ -1107,11 +1107,11 @@ function draw() {
         ctx.fillStyle = p.color;
         if (p.isChunk) {
             ctx.strokeStyle = p.color; ctx.lineWidth = 2;
-            if (p.chunkType === 0) { // Cabeza
+            if (p.chunkType === 0) { 
                 ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.stroke();
-            } else if (p.chunkType === 1) { // Extremidad
+            } else if (p.chunkType === 1) { 
                 ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + p.size*2, p.y + p.size); ctx.stroke();
-            } else { // Torso
+            } else { 
                 ctx.fillRect(p.x, p.y, p.size, p.size * 2);
             }
         } else {
@@ -1133,12 +1133,10 @@ function draw() {
     // SISTEMA DE RONDA DE OSCURIDAD (Mecánica 5)
     if (specialRoundType === "darkness") {
         ctx.save();
-        // Crear capa negra en todo el mapa
         ctx.fillStyle = "rgba(0, 0, 0, 0.96)";
         ctx.globalCompositeOperation = "multiply";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Crear efecto de luz "destructiva/sustractiva" en el mouse (Linterna)
         ctx.globalCompositeOperation = "destination-out";
         let radGrad = ctx.createRadialGradient(mouseX, mouseY, 10, mouseX, mouseY, 150);
         radGrad.addColorStop(0, "rgba(0,0,0,1)");
