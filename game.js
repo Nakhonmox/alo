@@ -14,6 +14,41 @@ const gravity = 0.6;
 const floorY = canvas.height - 60;
 
 // ==========================================
+// NUEVOS SISTEMAS: PARTÍCULAS Y TEXTOS FLOTANTES
+// ==========================================
+let particles = [];
+let floatingTexts = [];
+
+function spawnParticles(x, y, color, count, isDeath = false) {
+    for (let i = 0; i < count; i++) {
+        particles.push({
+            x: x,
+            y: y,
+            vx: (Math.random() - 0.5) * (isDeath ? 8 : 4),
+            vy: (Math.random() - 0.5) * (isDeath ? 12 : 6) - (isDeath ? 4 : 0),
+            size: Math.random() * (isDeath ? 5 : 3) + 2,
+            color: color,
+            alpha: 1,
+            decay: Math.random() * 0.02 + 0.01,
+            isChunk: isDeath && Math.random() > 0.4, // Trozos de extremidades
+            chunkType: Math.floor(Math.random() * 3) // 0: cabeza, 1: brazo, 2: torso
+        });
+    }
+}
+
+function spawnFloatingText(x, y, text, color) {
+    floatingTexts.push({
+        x: x,
+        y: y,
+        text: text,
+        color: color,
+        alpha: 1,
+        vy: -1.5,
+        life: 45 // frames de vida
+    });
+}
+
+// ==========================================
 // SISTEMA DE ESTADOS DEL JUEGO
 // ==========================================
 let gameState = "menu"; // "menu", "playing"
@@ -41,6 +76,9 @@ let enemiesSpawnedInRound = 0;
 let isRoundBreak = false;
 let roundBreakTimer = 0; 
 
+// NUEVAS VARIABLES PARA RONDAS ESPECIALES (MÚLTIPLOS DE 7)
+let specialRoundType = "none"; // "none", "speed", "darkness"
+
 const upgradeOptions = [
     { id: "red_heart", text: "+1 Corazón Rojo Max", color: "#ff2266", x: 0, y: 0, w: 280, h: 70 },
     { id: "blue_heart", text: "+1 Escudo Azul Max", color: "#00bfff", x: 0, y: 0, w: 280, h: 70 },
@@ -53,28 +91,22 @@ const permanentUpgrades = {
     bonusMaxAmmo: 0
 };
 
-// NUEVO: Se añade 'upgradeLevel' a cada arma para gestionar las mejoras de forma individual
 const weaponsCatalog = {
     pistola: { name: "Pistola Base", baseAmmo: 9, cooldown: 400, damage: 1, cost: 0, purchased: true, color: "#ffffff", upgradeLevel: 0 },
     mp5:     { name: "Subfusil MP5", baseAmmo: 20, cooldown: 130, damage: 1, cost: 1000, purchased: false, color: "#ffff00", upgradeLevel: 0 },
     duales:  { name: "Pistolas Duales", baseAmmo: 18, cooldown: 220, damage: 1, cost: 2000, purchased: false, color: "#ff00ff", upgradeLevel: 0 },
-    rifle:   { name: "Rifle Pesado", baseAmmo: 5, cooldown: 800, damage: 3, cost: 3000, purchased: false, color: "#00bfff", upgradeLevel: 0 },
+    rifle:   { name: "Rifle Pesado", baseAmmo: 5, cooldown: 800, damage: 2, cost: 3000, purchased: false, color: "#00bfff", upgradeLevel: 0 },
     galil:   { name: "Rifle Galil AR", baseAmmo: 25, cooldown: 180, damage: 2, cost: 4000, purchased: false, color: "#00ff66", upgradeLevel: 0 }
 };
 
-// ==========================================
-// CONFIGURACIÓN DEL PACK A PUNCH (MÁQUINA DE MEJORAS)
-// ==========================================
-// Buscamos la plataforma más alta (en este caso es la del edificio central: y = floorY - 420, width = 200)
-// Colocamos la máquina sobre esa plataforma
 const packAPunch = {
-    x: (canvas.width / 2) - 25, // Centrada en la plataforma de en medio arriba
-    y: (canvas.height - 60) - 420 - 60, // Justo encima de la plataforma alta
+    x: (canvas.width / 2) - 25, 
+    y: (canvas.height - 60) - 420 - 60, 
     width: 50,
     height: 60,
     cost: 10000,
     chargeProgress: 0,
-    requiredFrames: 300, // 5 segundos a 60 FPS
+    requiredFrames: 300, 
     isUpgrading: false
 };
 
@@ -93,6 +125,20 @@ function startNextRound() {
     bullets = [];
     enemyBullets = [];
     grenades = [];
+    particles = [];
+    floatingTexts = [];
+
+    // Comprobación de Lotería de Ronda Especial (Múltiplos de 7)
+    if (currentRound % 7 === 0) {
+        specialRoundType = Math.random() > 0.5 ? "speed" : "darkness";
+        if (specialRoundType === "speed") {
+            spawnFloatingText(canvas.width / 2, canvas.height / 2 - 50, "¡RONDA DE VELOCIDAD!", "#ff4500");
+        } else {
+            spawnFloatingText(canvas.width / 2, canvas.height / 2 - 50, "¡RONDA DE OSCURIDAD!", "#7b00b8");
+        }
+    } else {
+        specialRoundType = "none";
+    }
     
     clearInterval(spawnEnemyInterval);
     clearInterval(spawnFlyingInterval);
@@ -106,10 +152,15 @@ function startNextRound() {
         baseEnemyTime = Math.max(1000, 2500 - (speedIncrements * 500));
         baseFlyingTime = Math.max(1000, 4000 - (speedIncrements * 500));
     }
-    
-    spawnEnemyInterval = setInterval(spawnEnemy, baseEnemyTime);
-    spawnFlyingInterval = setInterval(spawnFlyingEnemy, baseFlyingTime);
-    spawnShieldedInterval = setInterval(spawnShieldedEnemy, 10000);
+
+    if (specialRoundType === "speed") {
+        // En ronda de velocidad solo salen voladores extremadamente rápido
+        spawnFlyingInterval = setInterval(spawnFlyingEnemy, 1200);
+    } else {
+        spawnEnemyInterval = setInterval(spawnEnemy, baseEnemyTime);
+        spawnFlyingInterval = setInterval(spawnFlyingEnemy, baseFlyingTime);
+        spawnShieldedInterval = setInterval(spawnShieldedEnemy, 10000);
+    }
 }
 
 function updatePlayerStats() {
@@ -184,16 +235,17 @@ buildings.forEach(bld => {
     }
 });
 
+// NUEVO: Se añade el estado 'destroyed' y 'repairTimer' para el comportamiento destructible
 const platforms = [
-    { x: buildings[0].x - 20, y: floorY - 150, width: 140, height: 15 },
-    { x: buildings[0].x + 140, y: floorY - 270, width: 140, height: 15 },
-    { x: buildings[0].x + 260, y: floorY - 380, width: 120, height: 15 },
-    { x: buildings[1].x + 10, y: floorY - 180, width: 120, height: 15 },
-    { x: buildings[1].x + 150, y: floorY - 300, width: 120, height: 15 },
-    { x: buildings[1].x + 40, y: floorY - 420, width: 200, height: 15 }, // PLATAFORMA MÁS ALTA
-    { x: buildings[2].x - 100, y: floorY - 350, width: 120, height: 15 },
-    { x: buildings[2].x + 20, y: floorY - 160, width: 130, height: 15 },
-    { x: buildings[2].x + 130, y: floorY - 290, width: 140, height: 15 }
+    { x: buildings[0].x - 20, y: floorY - 150, width: 140, height: 15, destroyed: false, repairTimer: 0 },
+    { x: buildings[0].x + 140, y: floorY - 270, width: 140, height: 15, destroyed: false, repairTimer: 0 },
+    { x: buildings[0].x + 260, y: floorY - 380, width: 120, height: 15, destroyed: false, repairTimer: 0 },
+    { x: buildings[1].x + 10, y: floorY - 180, width: 120, height: 15, destroyed: false, repairTimer: 0 },
+    { x: buildings[1].x + 150, y: floorY - 300, width: 120, height: 15, destroyed: false, repairTimer: 0 },
+    { x: buildings[1].x + 40, y: floorY - 420, width: 200, height: 15, destroyed: false, repairTimer: 0 }, 
+    { x: buildings[2].x - 100, y: floorY - 350, width: 120, height: 15, destroyed: false, repairTimer: 0 },
+    { x: buildings[2].x + 20, y: floorY - 160, width: 130, height: 15, destroyed: false, repairTimer: 0 },
+    { x: buildings[2].x + 130, y: floorY - 290, width: 140, height: 15, destroyed: false, repairTimer: 0 }
 ];
 
 const stars = [];
@@ -272,6 +324,7 @@ window.addEventListener("keydown", e => {
         if (key === "1") {
             score += 10000; 
             scoreEl.innerText = score;
+            spawnFloatingText(player.x + 20, player.y - 20, "+10000 PTS", "#ffff00");
         }
         return;
     }
@@ -283,52 +336,33 @@ window.addEventListener("keydown", e => {
     }
     
     if (showShop) {
-        if (key === "1") {
-            equipWeapon("pistola");
-            showShop = false; isPaused = false;
-        }
+        if (key === "1") { equipWeapon("pistola"); showShop = false; isPaused = false; }
         if (key === "2") {
-            if (weaponsCatalog.mp5.purchased) {
-                equipWeapon("mp5");
-                showShop = false; isPaused = false;
-            } else if (score >= weaponsCatalog.mp5.cost) {
+            if (weaponsCatalog.mp5.purchased) { equipWeapon("mp5"); showShop = false; isPaused = false; } 
+            else if (score >= weaponsCatalog.mp5.cost) {
                 score -= weaponsCatalog.mp5.cost; scoreEl.innerText = score;
-                weaponsCatalog.mp5.purchased = true;
-                equipWeapon("mp5");
-                showShop = false; isPaused = false;
+                weaponsCatalog.mp5.purchased = true; equipWeapon("mp5"); showShop = false; isPaused = false;
             }
         }
         if (key === "3") {
-            if (weaponsCatalog.duales.purchased) {
-                equipWeapon("duales");
-                showShop = false; isPaused = false;
-            } else if (score >= weaponsCatalog.duales.cost) {
+            if (weaponsCatalog.duales.purchased) { equipWeapon("duales"); showShop = false; isPaused = false; } 
+            else if (score >= weaponsCatalog.duales.cost) {
                 score -= weaponsCatalog.duales.cost; scoreEl.innerText = score;
-                weaponsCatalog.duales.purchased = true;
-                equipWeapon("duales");
-                showShop = false; isPaused = false;
+                weaponsCatalog.duales.purchased = true; equipWeapon("duales"); showShop = false; isPaused = false;
             }
         }
         if (key === "4") {
-            if (weaponsCatalog.rifle.purchased) {
-                equipWeapon("rifle");
-                showShop = false; isPaused = false;
-            } else if (score >= weaponsCatalog.rifle.cost) {
+            if (weaponsCatalog.rifle.purchased) { equipWeapon("rifle"); showShop = false; isPaused = false; } 
+            else if (score >= weaponsCatalog.rifle.cost) {
                 score -= weaponsCatalog.rifle.cost; scoreEl.innerText = score;
-                weaponsCatalog.rifle.purchased = true;
-                equipWeapon("rifle");
-                showShop = false; isPaused = false;
+                weaponsCatalog.rifle.purchased = true; equipWeapon("rifle"); showShop = false; isPaused = false;
             }
         }
         if (key === "5") {
-            if (weaponsCatalog.galil.purchased) {
-                equipWeapon("galil");
-                showShop = false; isPaused = false;
-            } else if (score >= weaponsCatalog.galil.cost) {
+            if (weaponsCatalog.galil.purchased) { equipWeapon("galil"); showShop = false; isPaused = false; } 
+            else if (score >= weaponsCatalog.galil.cost) {
                 score -= weaponsCatalog.galil.cost; scoreEl.innerText = score;
-                weaponsCatalog.galil.purchased = true;
-                equipWeapon("galil");
-                showShop = false; isPaused = false;
+                weaponsCatalog.galil.purchased = true; equipWeapon("galil"); showShop = false; isPaused = false;
             }
         }
         return;
@@ -349,7 +383,6 @@ function equipWeapon(weaponId) {
 }
 
 window.addEventListener("keydown", e => {
-    // MODIFICACIÓN: Si está mejorando en el Pack-a-Punch, bloquea el disparo por completo
     if (gameState !== "playing" || isRoundBreak || isPaused || packAPunch.isUpgrading) return; 
     
     if (e.key === " " && player.lives > 0) {
@@ -434,6 +467,7 @@ function sampleEnemySpawn() {
 
 function spawnEnemy() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return; 
+    if (specialRoundType === "speed") return; // No terrestres en ronda de velocidad
     if (!sampleEnemySpawn()) return;
 
     let extraHealth = Math.floor(currentRound / 5);
@@ -458,12 +492,12 @@ let spawnEnemyInterval = setInterval(spawnEnemy, 2500);
 
 function sampleFlyingSpawn() {
     let maxForThisRound = getTotalEnemiesForRound(currentRound);
-    return (currentRound >= 2 && enemiesSpawnedInRound < maxForThisRound && !isRoundBreak);
+    return ((currentRound >= 2 || specialRoundType === "speed") && enemiesSpawnedInRound < maxForThisRound && !isRoundBreak);
 }
 
 function sampleShieldedSpawn() {
     let maxForThisRound = getTotalEnemiesForRound(currentRound);
-    return (currentRound >= 5 && enemiesSpawnedInRound < maxForThisRound && !isRoundBreak);
+    return (currentRound >= 5 && enemiesSpawnedInRound < maxForThisRound && !isRoundBreak && specialRoundType !== "speed");
 }
 
 function spawnFlyingEnemy() {
@@ -471,19 +505,20 @@ function spawnFlyingEnemy() {
     if (!sampleFlyingSpawn()) return;
 
     let extraHealth = Math.floor(currentRound / 5);
+    let isSpeedRound = specialRoundType === "speed";
 
     enemiesSpawnedInRound++;
     enemies.push({
         x: Math.random() > 0.5 ? canvas.width + 20 : -50,
         y: Math.random() * (floorY - 250) + 50, 
         width: 40, height: 60,
-        speed: 2.2,
-        color: "#ff8c00",
+        speed: isSpeedRound ? 4.8 : 2.2, // El doble de rápidos
+        color: isSpeedRound ? "#ff1493" : "#ff8c00",
         isBoss: false,
         isFlying: true,
         isShielded: false,
-        lives: 1 + extraHealth,
-        maxLives: 1 + extraHealth
+        lives: isSpeedRound ? 1 : (1 + extraHealth), // 1 solo punto de vida en ronda velocidad
+        maxLives: isSpeedRound ? 1 : (1 + extraHealth)
     });
 }
 let spawnFlyingInterval = setInterval(spawnFlyingEnemy, 4000);
@@ -513,7 +548,7 @@ function spawnShieldedEnemy() {
 let spawnShieldedInterval = setInterval(spawnShieldedEnemy, 10000);
 
 function spawnBoss() {
-    if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return; 
+    if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak || specialRoundType === "speed") return; 
     
     let extraHealth = Math.floor(currentRound / 5);
 
@@ -564,6 +599,35 @@ function damagePlayer(amount) {
 function update() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused) return; 
 
+    // Actualización de Partículas
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.isChunk) { p.vy += 0.3; } // Gravedad a los trozos de cuerpo
+        p.alpha -= p.decay;
+        if (p.alpha <= 0) particles.splice(i, 1);
+    }
+
+    // Actualización de Textos Flotantes
+    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+        let ft = floatingTexts[i];
+        ft.y += ft.vy;
+        ft.life--;
+        if (ft.life <= 0) floatingTexts.splice(i, 1);
+    }
+
+    // Actualización de temporizadores de reparación de plataformas
+    platforms.forEach(plat => {
+        if (plat.destroyed) {
+            plat.repairTimer--;
+            if (plat.repairTimer <= 0) {
+                plat.destroyed = false;
+                spawnParticles(plat.x + plat.width / 2, plat.y, "#ffaa44", 15);
+            }
+        }
+    });
+
     if (enemiesLeftInRound <= 0 && !isRoundBreak) {
         isRoundBreak = true;
         roundBreakTimer = 10; 
@@ -574,6 +638,7 @@ function update() {
         grenades = [];
         dragonSpawned = false;
         dragon = null;
+        specialRoundType = "none";
     }
 
     if (isRoundBreak) return;
@@ -601,10 +666,7 @@ function update() {
         if (player.invulnerableTimer <= 0) player.isInvulnerable = false;
     }
 
-    // ==========================================
     // LÓGICA DE INTERACCIÓN PACK-A-PUNCH
-    // ==========================================
-    // Verificar si el jugador colisiona/está en la zona de la máquina
     let playerCenterX = player.x + player.width / 2;
     let playerCenterY = player.y + player.height / 2;
     let nearPackAPunch = (playerCenterX > packAPunch.x - 30 && playerCenterX < packAPunch.x + packAPunch.width + 30 &&
@@ -615,7 +677,6 @@ function update() {
         packAPunch.chargeProgress++;
 
         if (packAPunch.chargeProgress >= packAPunch.requiredFrames) {
-            // Completar mejora individual para el arma equipada actualmente
             let currentWeaponData = weaponsCatalog[player.currentWeapon];
             currentWeaponData.upgradeLevel++;
             currentWeaponData.damage += 1;
@@ -623,6 +684,8 @@ function update() {
             
             score -= packAPunch.cost;
             scoreEl.innerText = score;
+
+            spawnFloatingText(packAPunch.x + 25, packAPunch.y - 40, "¡ARMA MEJORADA!", "#00ffcc");
 
             packAPunch.isUpgrading = false;
             packAPunch.chargeProgress = 0;
@@ -632,7 +695,6 @@ function update() {
         packAPunch.chargeProgress = 0;
     }
 
-    // MODIFICACIÓN: Bloquea el movimiento horizontal y saltos si está mejorando
     if (!shieldSystem.isCharging && !packAPunch.isUpgrading) {
         if (keys["a"] && player.x > 0) { player.x -= player.speed; }
         if (keys["d"] && player.x < canvas.width - player.width) { player.x += player.speed; }
@@ -644,7 +706,7 @@ function update() {
     if (player.y >= floorY - player.height) { player.y = floorY - player.height; player.velocityY = 0; player.isGrounded = true; }
 
     platforms.forEach(plat => {
-        if (player.velocityY >= 0 && player.x + player.width - 10 > plat.x && player.x + 10 < plat.x + plat.width && player.y + player.height <= plat.y + 8 && player.y + player.height + player.velocityY >= plat.y) {
+        if (!plat.destroyed && player.velocityY >= 0 && player.x + player.width - 10 > plat.x && player.x + 10 < plat.x + plat.width && player.y + player.height <= plat.y + 8 && player.y + player.height + player.velocityY >= plat.y) {
             player.y = plat.y - player.height; player.velocityY = 0; player.isGrounded = true;
         }
     });
@@ -658,11 +720,15 @@ function update() {
                 bullet.y > dragon.y && bullet.y < dragon.y + dragon.height) {
                 
                 dragon.lives -= bullet.damage;
+                spawnParticles(bullet.x, bullet.y, "#ff4500", 4);
+                spawnFloatingText(bullet.x, bullet.y - 15, `-${bullet.damage}`, "#ff6600");
                 bullets.splice(bIndex, 1);
                 
                 if (dragon.lives <= 0) {
                     score += 1000; 
                     scoreEl.innerText = score;
+                    spawnFloatingText(dragon.x + 100, dragon.y + 100, "+1000 PUNTOS", "#ffff00");
+                    spawnParticles(dragon.x + 160, dragon.y + 190, "#7b00b8", 80, true);
                     dragon = null;
                     dragonSpawned = false;
                 }
@@ -678,6 +744,19 @@ function update() {
     enemyBullets.forEach((eb, ebIndex) => {
         eb.x += eb.speedX;
         eb.y += eb.speedY;
+
+        // NUEVO: Fuego del Dragón destruye plataformas
+        if (eb.width > 20) { // Indica proyectil de dragón
+            platforms.forEach(plat => {
+                if (!plat.destroyed && eb.x > plat.x && eb.x < plat.x + plat.width && eb.y > plat.y - 10 && eb.y < plat.y + plat.height + 10) {
+                    plat.destroyed = true;
+                    plat.repairTimer = 3600; // 1 minuto a 60 FPS
+                    spawnParticles(plat.x + plat.width / 2, plat.y, "#ff4500", 30, true);
+                    spawnFloatingText(plat.x + plat.width / 2, plat.y - 20, "¡PLATAFORMA ROTA!", "#ff3333");
+                }
+            });
+        }
+
         if (checkCollision(player, eb)) {
             damagePlayer(eb.damage);
             enemyBullets.splice(ebIndex, 1);
@@ -693,6 +772,7 @@ function update() {
         if (g.timer <= 0) {
             let distance = Math.sqrt(Math.pow((player.x + player.width/2) - g.x, 2) + Math.pow((player.y + player.height/2) - g.y, 2));
             if (distance < g.radius) { damagePlayer(1); }
+            spawnParticles(g.x, g.y, "#ff4500", 25, true);
             grenades.splice(gIndex, 1); 
         }
     });
@@ -715,7 +795,7 @@ function update() {
                 enemy.velocityY += gravity; enemy.y += enemy.velocityY;
                 if (enemy.y >= floorY - enemy.height) { enemy.y = floorY - enemy.height; enemy.velocityY = 0; enemy.isGrounded = true; }
                 platforms.forEach(plat => {
-                    if (enemy.velocityY >= 0 && enemy.x + enemy.width > plat.x && enemy.x < plat.x + plat.width && enemy.y + enemy.height <= plat.y + 8 && enemy.y + enemy.height + enemy.velocityY >= plat.y) {
+                    if (!plat.destroyed && enemy.velocityY >= 0 && enemy.x + enemy.width > plat.x && enemy.x < plat.x + plat.width && enemy.y + enemy.height <= plat.y + 8 && enemy.y + enemy.height + enemy.velocityY >= plat.y) {
                         enemy.y = plat.y - enemy.height; enemy.velocityY = 0; enemy.isGrounded = true;
                     }
                 });
@@ -753,12 +833,26 @@ function update() {
         bullets.forEach((bullet, bIndex) => {
             if (checkCollision(bullet, enemy)) {
                 enemy.lives -= bullet.damage; 
+                
+                // Efecto: Chispas si es robot blindado o sangre pixelada roja si es normal/volador
+                let particleColor = enemy.isShielded ? "#00bfff" : "#ff0033";
+                spawnParticles(bullet.x, bullet.y, particleColor, 6);
+                spawnFloatingText(enemy.x + enemy.width / 2, enemy.y, `-${bullet.damage}`, "#ff3333");
+
                 bullets.splice(bIndex, 1);
+
                 if (enemy.lives <= 0) {
+                    let ptsGained = enemy.isBoss ? 150 : (enemy.isShielded ? 100 : 50);
+                    score += ptsGained; 
+                    scoreEl.innerText = score;
+
+                    // Sangre y explosión completa de cuerpo
+                    spawnParticles(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, particleColor, 25, true);
+                    // Número flotante de recompensa
+                    spawnFloatingText(enemy.x + enemy.width / 2, enemy.y - 20, `+${ptsGained}`, "#00ff66");
+
                     enemies.splice(eIndex, 1);
                     enemiesLeftInRound--; 
-                    score += enemy.isBoss ? 150 : (enemy.isShielded ? 100 : 50); 
-                    scoreEl.innerText = score;
                 }
             }
         });
@@ -817,60 +911,41 @@ function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 
         let angle = Math.atan2(mouseY - (y + 35), mouseX - cx);
 
         if (player.currentWeapon === "duales") {
-            ctx.save();
-            ctx.translate(cx, y + 30);
-            ctx.rotate(angle);
+            ctx.save(); ctx.translate(cx, y + 30); ctx.rotate(angle);
             ctx.strokeStyle = color; ctx.lineWidth = 3 * scale;
             ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(18, -4); ctx.stroke(); 
             ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.moveTo(18, -4); ctx.lineTo(28, -4); ctx.stroke(); 
-            ctx.restore();
+            ctx.beginPath(); ctx.moveTo(18, -4); ctx.lineTo(28, -4); ctx.stroke(); ctx.restore();
 
-            ctx.save();
-            ctx.translate(cx, y + 42);
-            ctx.rotate(angle);
+            ctx.save(); ctx.translate(cx, y + 42); ctx.rotate(angle);
             ctx.strokeStyle = color; ctx.lineWidth = 3 * scale;
             ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(18, 4); ctx.stroke();  
             ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.moveTo(18, 4); ctx.lineTo(28, 4); ctx.stroke();  
-            ctx.restore();
+            ctx.beginPath(); ctx.moveTo(18, 4); ctx.lineTo(28, 4); ctx.stroke(); ctx.restore();
         } else {
-            ctx.save();
-            ctx.translate(cx, y + 35);
-            ctx.rotate(angle);
+            ctx.save(); ctx.translate(cx, y + 35); ctx.rotate(angle);
             ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(20, 0); ctx.stroke();
             ctx.strokeStyle = "#ffffff"; 
             ctx.lineWidth = player.currentWeapon === "mp5" ? 5 : (player.currentWeapon === "rifle" ? 6 : 3);
-            ctx.beginPath(); ctx.moveTo(20, 0); ctx.lineTo((player.currentWeapon === "rifle" || player.currentWeapon === "galil") ? 38 : 30, 0); ctx.stroke();
-            ctx.restore();
+            ctx.beginPath(); ctx.moveTo(20, 0); ctx.lineTo((player.currentWeapon === "rifle" || player.currentWeapon === "galil") ? 38 : 30, 0); ctx.stroke(); ctx.restore();
         }
     } else {
         if (color === "#ff3333" && scale === 1 && !isFlying) {
-            ctx.save();
-            ctx.translate(cx, y + 35);
-            
+            ctx.save(); ctx.translate(cx, y + 35);
             let dir = facingRight ? 1 : -1;
-            
             let angleBase = dir === 1 ? -Math.PI / 5 : -Math.PI * 4 / 5;
             let wobble = Math.sin(Date.now() / 100) * 0.1;
             ctx.rotate(angleBase + wobble);
-
             ctx.strokeStyle = color; ctx.lineWidth = 3;
             ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(15, 0); ctx.stroke();
-
             ctx.strokeStyle = "#5a3825"; ctx.lineWidth = 4;
             ctx.beginPath(); ctx.moveTo(15, 0); ctx.lineTo(23, 0); ctx.stroke();
-
             ctx.strokeStyle = "#e5b800"; ctx.lineWidth = 5;
             ctx.beginPath(); ctx.moveTo(23, -4); ctx.lineTo(23, 4); ctx.stroke();
-
             ctx.strokeStyle = "#cccccc"; ctx.lineWidth = 2.5;
             ctx.beginPath(); ctx.moveTo(23, 0); ctx.lineTo(50, 0); ctx.stroke();
-
             ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.moveTo(25, -1); ctx.lineTo(49, -1); ctx.stroke();
-
-            ctx.restore();
+            ctx.beginPath(); ctx.moveTo(25, -1); ctx.lineTo(49, -1); ctx.stroke(); ctx.restore();
         } else {
             let dir = facingRight ? 1 : -1;
             ctx.beginPath(); ctx.moveTo(cx, y + 35); ctx.lineTo(cx + (15 * scale * dir), y + 45); ctx.stroke();
@@ -886,10 +961,8 @@ function draw() {
     if (gameState === "menu") {
         ctx.fillStyle = "rgba(10, 10, 20, 0.8)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "#00ffcc";
-        ctx.font = "bold 60px Arial";
-        ctx.shadowColor = "#00ffcc"; ctx.shadowBlur = 10;
-        ctx.textAlign = "center";
+        ctx.fillStyle = "#00ffcc"; ctx.font = "bold 60px Arial";
+        ctx.shadowColor = "#00ffcc"; ctx.shadowBlur = 10; ctx.textAlign = "center";
         ctx.fillText("STICKMAN SURVIVOR", canvas.width / 2, canvas.height * 0.35);
         ctx.shadowBlur = 0; 
 
@@ -898,26 +971,19 @@ function draw() {
 
         ctx.fillStyle = isHover ? "#00ffcc" : "#3a3a4a";
         ctx.fillRect(playButton.x, playButton.y, playButton.width, playButton.height);
-        ctx.strokeStyle = "#00ffcc";
-        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#00ffcc"; ctx.lineWidth = 3;
         ctx.strokeRect(playButton.x, playButton.y, playButton.width, playButton.height);
-        ctx.fillStyle = isHover ? "#000000" : "#ffffff";
-        ctx.font = "bold 24px Arial";
+        ctx.fillStyle = isHover ? "#000000" : "#ffffff"; ctx.font = "bold 24px Arial";
         ctx.fillText("PLAY", canvas.width / 2, canvas.height / 2 + 38);
-        ctx.fillStyle = "#888888";
-        ctx.font = "16px Arial";
-        ctx.fillText("Controles: A/D (Moverse) - W (Saltar) - Espacio (Disparar) - T (Tienda) - M (Cheats)", canvas.width / 2, canvas.height * 0.75);
+        ctx.fillStyle = "#888888"; ctx.font = "16px Arial";
+        ctx.fillText("Controles: A/D (Moverse) - W (Saltar) - Espacio (Disparar) - T (Tienda) - M (Cheats) - U (Pack-A-Punch)", canvas.width / 2, canvas.height * 0.75);
         ctx.textAlign = "left"; 
         return; 
     }
 
     buildings.forEach(bld => {
-        ctx.fillStyle = bld.color;
-        ctx.fillRect(bld.x, floorY - bld.height, bld.width, bld.height);
-
-        ctx.fillStyle = "#1e1513";
-        ctx.fillRect(bld.x, floorY - bld.height, bld.width, 6);
-
+        ctx.fillStyle = bld.color; ctx.fillRect(bld.x, floorY - bld.height, bld.width, bld.height);
+        ctx.fillStyle = "#1e1513"; ctx.fillRect(bld.x, floorY - bld.height, bld.width, 6);
         bld.windows.forEach(w => {
             ctx.fillStyle = w.lit ? "#ffdd66" : "#1a1211"; 
             ctx.fillRect(bld.x + w.relX, (floorY - bld.height) + w.relY, 16, 16);
@@ -927,56 +993,46 @@ function draw() {
     ctx.fillStyle = "#111116"; ctx.beginPath(); ctx.moveTo(0, floorY); ctx.lineTo(canvas.width*0.25, floorY-120); ctx.lineTo(canvas.width*0.6, floorY); ctx.lineTo(canvas.width*0.85, floorY-180); ctx.lineTo(canvas.width, floorY); ctx.fill();
 
     backgroundDecorations.forEach(barrel => {
-        ctx.fillStyle = barrel.color;
-        ctx.fillRect(barrel.x, barrel.y, barrel.width, barrel.height);
-        ctx.strokeStyle = "#111"; ctx.lineWidth = 2;
-        ctx.strokeRect(barrel.x, barrel.y, barrel.width, barrel.height);
+        ctx.fillStyle = barrel.color; ctx.fillRect(barrel.x, barrel.y, barrel.width, barrel.height);
+        ctx.strokeStyle = "#111"; ctx.lineWidth = 2; ctx.strokeRect(barrel.x, barrel.y, barrel.width, barrel.height);
         ctx.beginPath();
         ctx.moveTo(barrel.x, barrel.y + barrel.height / 3); ctx.lineTo(barrel.x + barrel.width, barrel.y + barrel.height / 3);
-        ctx.moveTo(barrel.x, barrel.y + (barrel.height / 3) * 2); ctx.lineTo(barrel.x + barrel.width, barrel.y + (barrel.height / 3) * 2);
-        ctx.stroke();
-        if (barrel.type === "toxic") {
-            ctx.fillStyle = "#7fff00"; ctx.fillRect(barrel.x + 5, barrel.y + 12, barrel.width - 10, 8);
-        }
+        ctx.moveTo(barrel.x, barrel.y + (barrel.height / 3) * 2); ctx.lineTo(barrel.x + barrel.width, barrel.y + (barrel.height / 3) * 2); ctx.stroke();
+        if (barrel.type === "toxic") { ctx.fillStyle = "#7fff00"; ctx.fillRect(barrel.x + 5, barrel.y + 12, barrel.width - 10, 8); }
     });
 
     ctx.fillStyle = "#1e1e24"; ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
     ctx.fillStyle = "#00ffcc"; ctx.fillRect(0, floorY, canvas.width, 4);
 
+    // Dibujo de Plataformas (Solo si no están destruidas)
     platforms.forEach(plat => { 
-        ctx.fillStyle = "#4e413d"; ctx.fillRect(plat.x, plat.y, plat.width, plat.height); 
-        ctx.fillStyle = "#ffaa44"; ctx.fillRect(plat.x, plat.y, plat.width, 2); 
+        if (!plat.destroyed) {
+            ctx.fillStyle = "#4e413d"; ctx.fillRect(plat.x, plat.y, plat.width, plat.height); 
+            ctx.fillStyle = "#ffaa44"; ctx.fillRect(plat.x, plat.y, plat.width, 2); 
+        } else {
+            // Efecto fantasma / indicador de regeneración de plataforma rota
+            ctx.fillStyle = "rgba(255, 69, 0, 0.15)";
+            ctx.fillRect(plat.x, plat.y, plat.width, plat.height);
+        }
     });
 
-    // ==========================================
     // RENDERIZADO VISUAL DEL PACK-A-PUNCH
-    // ==========================================
-    ctx.fillStyle = "#4b0082"; // Máquina morada de fondo
-    ctx.fillRect(packAPunch.x, packAPunch.y, packAPunch.width, packAPunch.height);
-    ctx.strokeStyle = "#da70d6"; ctx.lineWidth = 3;
-    ctx.strokeRect(packAPunch.x, packAPunch.y, packAPunch.width, packAPunch.height);
-    
-    // Luces de decoración en la máquina
+    ctx.fillStyle = "#4b0082"; ctx.fillRect(packAPunch.x, packAPunch.y, packAPunch.width, packAPunch.height);
+    ctx.strokeStyle = "#da70d6"; ctx.lineWidth = 3; ctx.strokeRect(packAPunch.x, packAPunch.y, packAPunch.width, packAPunch.height);
     ctx.fillStyle = Math.floor(Date.now() / 250) % 2 === 0 ? "#00ffff" : "#ff00ff";
-    ctx.fillRect(packAPunch.x + 8, packAPunch.y + 10, 8, 8);
-    ctx.fillRect(packAPunch.x + packAPunch.width - 16, packAPunch.y + 10, 8, 8);
+    ctx.fillRect(packAPunch.x + 8, packAPunch.y + 10, 8, 8); ctx.fillRect(packAPunch.x + packAPunch.width - 16, packAPunch.y + 10, 8, 8);
 
-    // Texto de indicación sobre la máquina si el jugador está cerca
-    let playerCenterX = player.x + player.width / 2;
-    let playerCenterY = player.y + player.height / 2;
-    if (playerCenterX > packAPunch.x - 30 && playerCenterX < packAPunch.x + packAPunch.width + 30 &&
-        playerCenterY > packAPunch.y - 30 && playerCenterY < packAPunch.y + packAPunch.height + 30 && !packAPunch.isUpgrading) {
+    let nearPackAPunch = (playerCenterX > packAPunch.x - 30 && playerCenterX < packAPunch.x + packAPunch.width + 30 &&
+                          playerCenterY > packAPunch.y - 30 && playerCenterY < packAPunch.y + packAPunch.height + 30);
+    if (nearPackAPunch && !packAPunch.isUpgrading) {
         ctx.fillStyle = "#ffffff"; ctx.font = "bold 13px Arial"; ctx.textAlign = "center";
         ctx.fillText(score >= packAPunch.cost ? "[Mantén U] Mejorar Arma (10k pts)" : "Pack-A-Punch (10,000 pts)", packAPunch.x + packAPunch.width/2, packAPunch.y - 12);
         ctx.textAlign = "left";
     }
 
-    // INTERFAZ DE PROGRESO: Mensaje "MEJORANDO" y la barra si se mantiene presionada la U
     if (packAPunch.isUpgrading) {
         ctx.fillStyle = "#ffff00"; ctx.font = "bold 16px Arial"; ctx.textAlign = "center";
         ctx.fillText("MEJORANDO...", packAPunch.x + packAPunch.width / 2, packAPunch.y - 25);
-        
-        // Dibujo de la barra de progreso
         let progressPct = packAPunch.chargeProgress / packAPunch.requiredFrames;
         ctx.fillStyle = "#222"; ctx.fillRect(packAPunch.x - 25, packAPunch.y - 15, 100, 8);
         ctx.fillStyle = "#00ffcc"; ctx.fillRect(packAPunch.x - 25, packAPunch.y - 15, 100 * progressPct, 8);
@@ -986,8 +1042,7 @@ function draw() {
     medkits.forEach(m => { ctx.fillStyle = "#ffffff"; ctx.fillRect(m.x, m.y, m.width, m.height); ctx.fillStyle = "#ff0000"; ctx.fillRect(m.x + m.width/2 - 2, m.y + 4, 4, m.height - 8); ctx.fillRect(m.x + 4, m.y + m.height/2 - 2, m.width - 8, 4); });
 
     grenades.forEach(g => {
-        ctx.fillStyle = "rgba(255, 0, 0, 0.35)";
-        ctx.beginPath(); ctx.arc(g.x, g.y, g.radius, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "rgba(255, 0, 0, 0.35)"; ctx.beginPath(); ctx.arc(g.x, g.y, g.radius, 0, Math.PI*2); ctx.fill();
         ctx.strokeStyle = "#ff0000"; ctx.lineWidth = 2; ctx.stroke();
     });
 
@@ -1008,33 +1063,27 @@ function draw() {
             ctx.fillStyle = "#ff0000"; ctx.fillRect(enemy.x, enemy.y - 15, (enemy.lives / enemy.maxLives) * 80, 8);
         } else if (enemy.isShielded) {
             ctx.fillStyle = "#222"; ctx.fillRect(enemy.x, enemy.y - 15, 45, 6);
-            ctx.fillStyle = "#00bfff"; 
-            ctx.fillRect(enemy.x, enemy.y - 15, (enemy.lives / enemy.maxLives) * 45, 6);
+            ctx.fillStyle = "#00bfff"; ctx.fillRect(enemy.x, enemy.y - 15, (enemy.lives / enemy.maxLives) * 45, 6);
         }
     });
 
     if (dragonSpawned && dragon) {
         ctx.save();
         let firePulse = Math.sin(Date.now() / 150) * 20;
-        ctx.fillStyle = "#4a0072"; 
-        ctx.beginPath(); ctx.moveTo(canvas.width, dragon.y + 150); ctx.lineTo(dragon.x + 180, dragon.y + 20); ctx.lineTo(dragon.x + 220, dragon.y + 180); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = "#5c008a"; 
-        ctx.beginPath(); ctx.moveTo(canvas.width, dragon.y + 100); ctx.quadraticCurveTo(dragon.x + 120, dragon.y + 150, dragon.x + 100, dragon.y + 250); ctx.lineTo(canvas.width, dragon.y + 380); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = "#4a0072"; ctx.beginPath(); ctx.moveTo(canvas.width, dragon.y + 150); ctx.lineTo(dragon.x + 180, dragon.y + 20); ctx.lineTo(dragon.x + 220, dragon.y + 180); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = "#5c008a"; ctx.beginPath(); ctx.moveTo(canvas.width, dragon.y + 100); ctx.quadraticCurveTo(dragon.x + 120, dragon.y + 150, dragon.x + 100, dragon.y + 250); ctx.lineTo(canvas.width, dragon.y + 380); ctx.closePath(); ctx.fill();
         ctx.strokeStyle = "#7b00b8"; ctx.lineWidth = 3;
         for(let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc(dragon.x + 160 + (i*30), dragon.y + 200 + (i*20), 25, 0, Math.PI); ctx.stroke(); }
-        ctx.fillStyle = "#6a009c";
-        ctx.beginPath(); ctx.moveTo(dragon.x + 140, dragon.y + 230); ctx.quadraticCurveTo(dragon.x + 60, dragon.y + 150, dragon.x + 40, dragon.y + 100); ctx.lineTo(dragon.x - 20, dragon.y + 80); ctx.lineTo(dragon.x + 30, dragon.y + 130); ctx.lineTo(dragon.x + 100, dragon.y + 160); ctx.quadraticCurveTo(dragon.x + 110, dragon.y + 200, dragon.x + 140, dragon.y + 250); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = "#6a009c"; ctx.beginPath(); ctx.moveTo(dragon.x + 140, dragon.y + 230); ctx.quadraticCurveTo(dragon.x + 60, dragon.y + 150, dragon.x + 40, dragon.y + 100); ctx.lineTo(dragon.x - 20, dragon.y + 80); ctx.lineTo(dragon.x + 30, dragon.y + 130); ctx.lineTo(dragon.x + 100, dragon.y + 160); ctx.quadraticCurveTo(dragon.x + 110, dragon.y + 200, dragon.x + 140, dragon.y + 250); ctx.closePath(); ctx.fill();
         ctx.fillStyle = "#4a0072"; ctx.beginPath(); ctx.moveTo(dragon.x + 30, dragon.y + 130); ctx.lineTo(dragon.x - 5, dragon.y + 115); ctx.lineTo(dragon.x + 40, dragon.y + 150); ctx.closePath(); ctx.fill();
         ctx.fillStyle = "#9900ff"; ctx.beginPath(); ctx.moveTo(dragon.x + 40, dragon.y + 90); ctx.lineTo(dragon.x + 10, dragon.y + 40); ctx.lineTo(dragon.x + 60, dragon.y + 95); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = "#ffff00"; ctx.shadowColor = "#ffea00"; ctx.shadowBlur = 15;
-        ctx.beginPath(); ctx.arc(dragon.x + 25, dragon.y + 95, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#ffff00"; ctx.shadowColor = "#ffea00"; ctx.shadowBlur = 15; ctx.beginPath(); ctx.arc(dragon.x + 25, dragon.y + 95, 9, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = "#000000"; ctx.beginPath(); ctx.arc(dragon.x + 23, dragon.y + 95, 3, 0, Math.PI * 2); ctx.fill();
         ctx.restore(); 
 
         let timeToShot = Date.now() - dragon.lastShot;
         if (timeToShot > 2000) {
-            ctx.fillStyle = "rgba(255, 69, 0, " + (0.3 + Math.abs(firePulse/40)) + ")";
-            ctx.beginPath(); ctx.arc(dragon.x + 25, dragon.y + 125, 25 + firePulse/2, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "rgba(255, 69, 0, " + (0.3 + Math.abs(firePulse/40)) + ")"; ctx.beginPath(); ctx.arc(dragon.x + 25, dragon.y + 125, 25 + firePulse/2, 0, Math.PI*2); ctx.fill();
         }
         ctx.fillStyle = "#5c008a"; ctx.beginPath(); ctx.moveTo(dragon.x + 120, dragon.y + 270); ctx.lineTo(dragon.x + 50, dragon.y + 310); ctx.lineTo(dragon.x + 30, dragon.y + 305); ctx.moveTo(dragon.x + 50, dragon.y + 310); ctx.lineTo(dragon.x + 35, dragon.y + 320); ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 4; ctx.stroke();
         ctx.fillStyle = "#222"; ctx.fillRect(canvas.width / 2 - 200, 30, 400, 20);
@@ -1051,6 +1100,55 @@ function draw() {
         } else { ctx.fillRect(eb.x, eb.y, eb.width, eb.height); }
     });
 
+    // DIBUJAR PARTÍCULAS (Mecánica 1)
+    particles.forEach(p => {
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        if (p.isChunk) {
+            ctx.strokeStyle = p.color; ctx.lineWidth = 2;
+            if (p.chunkType === 0) { // Cabeza
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.stroke();
+            } else if (p.chunkType === 1) { // Extremidad
+                ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + p.size*2, p.y + p.size); ctx.stroke();
+            } else { // Torso
+                ctx.fillRect(p.x, p.y, p.size, p.size * 2);
+            }
+        } else {
+            ctx.fillRect(p.x, p.y, p.size, p.size);
+        }
+        ctx.restore();
+    });
+
+    // DIBUJAR NÚMEROS FLOTANTES (Mecánica 2)
+    floatingTexts.forEach(ft => {
+        ctx.save();
+        ctx.globalAlpha = ft.alpha;
+        ctx.fillStyle = ft.color;
+        ctx.font = "bold 16px Courier New";
+        ctx.fillText(ft.text, ft.x, ft.y);
+        ctx.restore();
+    });
+
+    // SISTEMA DE RONDA DE OSCURIDAD (Mecánica 5)
+    if (specialRoundType === "darkness") {
+        ctx.save();
+        // Crear capa negra en todo el mapa
+        ctx.fillStyle = "rgba(0, 0, 0, 0.96)";
+        ctx.globalCompositeOperation = "multiply";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Crear efecto de luz "destructiva/sustractiva" en el mouse (Linterna)
+        ctx.globalCompositeOperation = "destination-out";
+        let radGrad = ctx.createRadialGradient(mouseX, mouseY, 10, mouseX, mouseY, 150);
+        radGrad.addColorStop(0, "rgba(0,0,0,1)");
+        radGrad.addColorStop(0.7, "rgba(0,0,0,0.5)");
+        radGrad.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = radGrad;
+        ctx.beginPath(); ctx.arc(mouseX, mouseY, 150, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    }
+
     for (let i = 0; i < player.maxLives; i++) {
         let hx = canvas.width - 150 + (i * 35); let hy = 35;
         ctx.fillStyle = i < player.lives ? "#ff2266" : "#441122"; 
@@ -1063,15 +1161,13 @@ function draw() {
         ctx.beginPath(); ctx.arc(sx-7, sy, 7, Math.PI, 0, false); ctx.arc(sx+7, sy, 7, Math.PI, 0, false); ctx.lineTo(sx, sy+12); ctx.closePath(); ctx.fill();
     }
 
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 24px Arial";
-    ctx.fillText(`RONDA: ${currentRound}`, 25, 100);
+    ctx.fillStyle = "#ffffff"; ctx.font = "bold 24px Arial";
+    ctx.fillText(`RONDA: ${currentRound} ${specialRoundType === 'speed' ? '[VELOCIDAD]' : (specialRoundType === 'darkness' ? '[OSCURIDAD]' : '')}`, 25, 100);
     ctx.font = "18px Arial"; ctx.fillStyle = "#ff3333";
     ctx.fillText(`Enemigos restantes: ${enemiesLeftInRound > 0 ? enemiesLeftInRound : 0}`, 25, 135);
 
     if (isRoundBreak) {
-        ctx.fillStyle = "rgba(12, 12, 28, 0.92)"; 
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "rgba(12, 12, 28, 0.92)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#00ffcc"; ctx.font = "bold 42px Arial"; ctx.textAlign = "center";
         ctx.fillText(`¡RONDA COMPLETADA!`, canvas.width / 2, canvas.height * 0.28);
         ctx.fillStyle = "#ffffff"; ctx.font = "20px Arial";
@@ -1096,7 +1192,6 @@ function draw() {
     ctx.strokeStyle = "rgba(255, 255, 255, 0.4)"; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.arc(mouseX, mouseY, 6, 0, Math.PI*2); ctx.stroke();
 
-    // Muestra visual del nombre del arma actual (cambia de forma individual con sus niveles)
     const currentWeaponData = weaponsCatalog[player.currentWeapon];
     ctx.fillStyle = "#ffffff"; ctx.font = "20px Arial";
     ctx.fillText(`Arma: ${currentWeaponData.name.toUpperCase()} (Daño: ${currentWeaponData.damage})`, 25, canvas.height - 110);
@@ -1116,50 +1211,26 @@ function draw() {
         ctx.fillStyle = "#00ffcc"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
         ctx.fillText("TIENDA & ARMERÍA (Juego Pausado)", canvas.width / 2, canvas.height * 0.12);
         ctx.fillStyle = "#ffffff"; ctx.font = "24px Arial"; ctx.fillText(`Tu Puntuación: ${score} pts`, canvas.width / 2, canvas.height * 0.18);
-        
         ctx.font = "22px Arial";
         
-        if (player.currentWeapon === "pistola") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText(`[EQUIPADA ACTUALMENTE] - 1. ${weaponsCatalog.pistola.name}`, canvas.width / 2, canvas.height * 0.32);
-        } else {
-            ctx.fillStyle = "#ffffff"; ctx.fillText(`[Presiona 1] Equipar ${weaponsCatalog.pistola.name} (Ya Adquirida)`, canvas.width / 2, canvas.height * 0.32);
-        }
+        if (player.currentWeapon === "pistola") { ctx.fillStyle = "#00ffcc"; ctx.fillText(`[EQUIPADA ACTUALMENTE] - 1. ${weaponsCatalog.pistola.name}`, canvas.width / 2, canvas.height * 0.32); } 
+        else { ctx.fillStyle = "#ffffff"; ctx.fillText(`[Presiona 1] Equipar ${weaponsCatalog.pistola.name} (Ya Adquirida)`, canvas.width / 2, canvas.height * 0.32); }
 
-        if (player.currentWeapon === "mp5") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText(`[EQUIPADA ACTUALMENTE] - 2. ${weaponsCatalog.mp5.name}`, canvas.width / 2, canvas.height * 0.41);
-        } else if (weaponsCatalog.mp5.purchased) {
-            ctx.fillStyle = "#ffff00"; ctx.fillText(`[Presiona 2] Equipar ${weaponsCatalog.mp5.name} (Ya Adquirido)`, canvas.width / 2, canvas.height * 0.41);
-        } else {
-            ctx.fillStyle = score >= weaponsCatalog.mp5.cost ? "#ffffff" : "#ff3333";
-            ctx.fillText(`[Presiona 2] Comprar Subfusil MP5 - Costo: ${weaponsCatalog.mp5.cost} pts`, canvas.width / 2, canvas.height * 0.41);
-        }
+        if (player.currentWeapon === "mp5") { ctx.fillStyle = "#00ffcc"; ctx.fillText(`[EQUIPADA ACTUALMENTE] - 2. ${weaponsCatalog.mp5.name}`, canvas.width / 2, canvas.height * 0.41); } 
+        else if (weaponsCatalog.mp5.purchased) { ctx.fillStyle = "#ffff00"; ctx.fillText(`[Presiona 2] Equipar ${weaponsCatalog.mp5.name} (Ya Adquirido)`, canvas.width / 2, canvas.height * 0.41); } 
+        else { ctx.fillStyle = score >= weaponsCatalog.mp5.cost ? "#ffffff" : "#ff3333"; ctx.fillText(`[Presiona 2] Comprar Subfusil MP5 - Costo: ${weaponsCatalog.mp5.cost} pts`, canvas.width / 2, canvas.height * 0.41); }
 
-        if (player.currentWeapon === "duales") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText(`[EQUIPADA ACTUALMENTE] - 3. ${weaponsCatalog.duales.name}`, canvas.width / 2, canvas.height * 0.50);
-        } else if (weaponsCatalog.duales.purchased) {
-            ctx.fillStyle = "#ff00ff"; ctx.fillText(`[Presiona 3] Equipar ${weaponsCatalog.duales.name} (Ya Adquiridas)`, canvas.width / 2, canvas.height * 0.50);
-        } else {
-            ctx.fillStyle = score >= weaponsCatalog.duales.cost ? "#ffffff" : "#ff3333";
-            ctx.fillText(`[Presiona 3] Comprar Pistolas Duales - Costo: ${weaponsCatalog.duales.cost} pts`, canvas.width / 2, canvas.height * 0.50);
-        }
+        if (player.currentWeapon === "duales") { ctx.fillStyle = "#00ffcc"; ctx.fillText(`[EQUIPADA ACTUALMENTE] - 3. ${weaponsCatalog.duales.name}`, canvas.width / 2, canvas.height * 0.50); } 
+        else if (weaponsCatalog.duales.purchased) { ctx.fillStyle = "#ff00ff"; ctx.fillText(`[Presiona 3] Equipar ${weaponsCatalog.duales.name} (Ya Adquiridas)`, canvas.width / 2, canvas.height * 0.50); } 
+        else { ctx.fillStyle = score >= weaponsCatalog.duales.cost ? "#ffffff" : "#ff3333"; ctx.fillText(`[Presiona 3] Comprar Pistolas Duales - Costo: ${weaponsCatalog.duales.cost} pts`, canvas.width / 2, canvas.height * 0.50); }
 
-        if (player.currentWeapon === "rifle") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText(`[EQUIPADA ACTUALMENTE] - 4. ${weaponsCatalog.rifle.name}`, canvas.width / 2, canvas.height * 0.59);
-        } else if (weaponsCatalog.rifle.purchased) {
-            ctx.fillStyle = "#00bfff"; ctx.fillText(`[Presiona 4] Equipar ${weaponsCatalog.rifle.name} (Ya Adquirido)`, canvas.width / 2, canvas.height * 0.59);
-        } else {
-            ctx.fillStyle = score >= weaponsCatalog.rifle.cost ? "#ffffff" : "#ff3333";
-            ctx.fillText(`[Presiona 4] Comprar Rifle Pesado - Costo: ${weaponsCatalog.rifle.cost} pts`, canvas.width / 2, canvas.height * 0.59);
-        }
+        if (player.currentWeapon === "rifle") { ctx.fillStyle = "#00ffcc"; ctx.fillText(`[EQUIPADA ACTUALMENTE] - 4. ${weaponsCatalog.rifle.name}`, canvas.width / 2, canvas.height * 0.59); } 
+        else if (weaponsCatalog.rifle.purchased) { ctx.fillStyle = "#00bfff"; ctx.fillText(`[Presiona 4] Equipar ${weaponsCatalog.rifle.name} (Ya Adquirido)`, canvas.width / 2, canvas.height * 0.59); } 
+        else { ctx.fillStyle = score >= weaponsCatalog.rifle.cost ? "#ffffff" : "#ff3333"; ctx.fillText(`[Presiona 4] Comprar Rifle Pesado - Costo: ${weaponsCatalog.rifle.cost} pts`, canvas.width / 2, canvas.height * 0.59); }
 
-        if (player.currentWeapon === "galil") {
-            ctx.fillStyle = "#00ffcc"; ctx.fillText(`[EQUIPADA ACTUALMENTE] - 5. ${weaponsCatalog.galil.name}`, canvas.width / 2, canvas.height * 0.68);
-        } else if (weaponsCatalog.galil.purchased) {
-            ctx.fillStyle = "#00ff66"; ctx.fillText(`[Presiona 5] Equipar ${weaponsCatalog.galil.name} (Ya Adquirido)`, canvas.width / 2, canvas.height * 0.68);
-        } else {
-            ctx.fillStyle = score >= weaponsCatalog.galil.cost ? "#ffffff" : "#ff3333";
-            ctx.fillText(`[Presiona 5] Comprar Rifle Galil AR - Costo: ${weaponsCatalog.galil.cost} pts`, canvas.width / 2, canvas.height * 0.68);
-        }
+        if (player.currentWeapon === "galil") { ctx.fillStyle = "#00ffcc"; ctx.fillText(`[EQUIPADA ACTUALMENTE] - 5. ${weaponsCatalog.galil.name}`, canvas.width / 2, canvas.height * 0.68); } 
+        else if (weaponsCatalog.galil.purchased) { ctx.fillStyle = "#00ff66"; ctx.fillText(`[Presiona 5] Equipar ${weaponsCatalog.galil.name} (Ya Adquirido)`, canvas.width / 2, canvas.height * 0.68); } 
+        else { ctx.fillStyle = score >= weaponsCatalog.galil.cost ? "#ffffff" : "#ff3333"; ctx.fillText(`[Presiona 5] Comprar Rifle Galil AR - Costo: ${weaponsCatalog.galil.cost} pts`, canvas.width / 2, canvas.height * 0.68); }
         
         ctx.fillStyle = "#aaa"; ctx.font = "18px Arial"; ctx.fillText("Presiona 'T' para cerrar el menú y volver al juego", canvas.width / 2, canvas.height * 0.82);
         ctx.textAlign = "left";
@@ -1169,16 +1240,10 @@ function draw() {
         ctx.fillStyle = "rgba(25, 10, 10, 0.96)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#ff3333"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
         ctx.fillText("MENÚ DE TRUCOS / CHEATS (Juego Pausado)", canvas.width / 2, canvas.height * 0.2);
-        
-        ctx.fillStyle = "#ffffff"; ctx.font = "24px Arial"; 
-        ctx.fillText(`Puntuación Actual: ${score} pts`, canvas.width / 2, canvas.height * 0.28);
-        
-        ctx.font = "22px Arial";
-        ctx.fillStyle = "#ffaa00";
+        ctx.fillStyle = "#ffffff"; ctx.font = "24px Arial"; ctx.fillText(`Puntuación Actual: ${score} pts`, canvas.width / 2, canvas.height * 0.28);
+        ctx.font = "22px Arial"; ctx.fillStyle = "#ffaa00";
         ctx.fillText("[Presiona 1] Añadir +10,000 Puntos Instantáneos", canvas.width / 2, canvas.height * 0.45);
-        
-        ctx.fillStyle = "#aaa"; ctx.font = "18px Arial"; 
-        ctx.fillText("Presiona 'M' de nuevo para cerrar el menú de trucos", canvas.width / 2, canvas.height * 0.75);
+        ctx.fillStyle = "#aaa"; ctx.font = "18px Arial"; ctx.fillText("Presiona 'M' de nuevo para cerrar el menú de trucos", canvas.width / 2, canvas.height * 0.75);
         ctx.textAlign = "left";
     }
 }
