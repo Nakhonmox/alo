@@ -49,15 +49,27 @@ function spawnFloatingText(x, y, text, color) {
 }
 
 // ==========================================
-// SISTEMA DE ESTADOS DEL JUEGO
+// SISTEMA DE ESTADOS DEL JUEGO Y COSMÉTICOS
 // ==========================================
-let gameState = "menu"; // "menu", "playing"
+let gameState = "menu"; // "menu", "playing", "cosmetics_shop"
+let coins = 0; // Monedas permanentes para la tienda del menú principal
+let activeHat = "none"; // Sombrero equipado: "none", "vaquero", "copa"
 
-const playButton = {
+const menuButtons = {
+    play: { x: canvas.width / 2 - 100, y: canvas.height / 2 - 40, width: 200, height: 55, text: "PLAY" },
+    shop: { x: canvas.width / 2 - 100, y: canvas.height / 2 + 35, width: 200, height: 55, text: "TIENDA DE SOMBREROS" }
+};
+
+const backToMenuButton = {
     x: canvas.width / 2 - 100,
-    y: canvas.height / 2,
+    y: canvas.height * 0.8,
     width: 200,
-    height: 60
+    height: 50
+};
+
+const hatCatalog = {
+    vaquero: { name: "Sombrero Vaquero", cost: 5000, purchased: false },
+    copa:    { name: "Sombrero de Copa", cost: 10000, purchased: false }
 };
 
 let isPaused = false;
@@ -117,6 +129,10 @@ function getTotalEnemiesForRound(round) {
 
 function startNextRound() {
     currentRound++;
+    setupRoundEntities();
+}
+
+function setupRoundEntities() {
     enemiesSpawnedInRound = 0;
     enemiesLeftInRound = getTotalEnemiesForRound(currentRound);
     isRoundBreak = false;
@@ -127,6 +143,9 @@ function startNextRound() {
     grenades = [];
     particles = [];
     floatingTexts = [];
+    dragonSpawned = false;
+    dragon = null;
+    dragonWarning = false;
 
     // Lotería de Ronda Especial en múltiplos de 7
     if (currentRound % 7 === 0) {
@@ -273,13 +292,42 @@ window.addEventListener("mousemove", e => {
 
 window.addEventListener("click", e => {
     if (gameState === "menu") {
-        if (
-            mouseX >= playButton.x &&
-            mouseX <= playButton.x + playButton.width &&
-            mouseY >= playButton.y &&
-            mouseY <= playButton.y + playButton.height
-        ) {
+        if (mouseX >= menuButtons.play.x && mouseX <= menuButtons.play.x + menuButtons.play.width &&
+            mouseY >= menuButtons.play.y && mouseY <= menuButtons.play.y + menuButtons.play.height) {
             gameState = "playing";
+        }
+        else if (mouseX >= menuButtons.shop.x && mouseX <= menuButtons.shop.x + menuButtons.shop.width &&
+                 mouseY >= menuButtons.shop.y && mouseY <= menuButtons.shop.y + menuButtons.shop.height) {
+            gameState = "cosmetics_shop";
+        }
+        return;
+    }
+
+    if (gameState === "cosmetics_shop") {
+        if (mouseX >= backToMenuButton.x && mouseX <= backToMenuButton.x + backToMenuButton.width &&
+            mouseY >= backToMenuButton.y && mouseY <= backToMenuButton.y + backToMenuButton.height) {
+            gameState = "menu";
+            return;
+        }
+
+        // Compras/Equipamiento en la Tienda Principal
+        let index = 0;
+        for (let key in hatCatalog) {
+            let item = hatCatalog[key];
+            let bx = canvas.width / 2 - 140;
+            let by = canvas.height * 0.35 + (index * 110);
+            let bw = 280, bh = 50;
+
+            if (mouseX >= bx && mouseX <= bx + bw && mouseY >= by && mouseY <= by + bh) {
+                if (item.purchased) {
+                    activeHat = activeHat === key ? "none" : key; // Equipar/Desequipar
+                } else if (coins >= item.cost) {
+                    coins -= item.cost;
+                    item.purchased = true;
+                    activeHat = key;
+                }
+            }
+            index++;
         }
         return;
     }
@@ -323,6 +371,12 @@ window.addEventListener("keydown", e => {
             score += 10000; 
             scoreEl.innerText = score;
             spawnFloatingText(player.x + 20, player.y - 20, "+10000 PTS", "#ffff00");
+        }
+        if (key === "2") {
+            // TRUCO: +1 Ronda instantáneo
+            currentRound++;
+            setupRoundEntities();
+            spawnFloatingText(player.x + 20, player.y - 20, `Saltado a Ronda ${currentRound}`, "#ff00ff");
         }
         return;
     }
@@ -634,6 +688,7 @@ function update() {
     if (enemiesLeftInRound <= 0 && !isRoundBreak) {
         isRoundBreak = true;
         roundBreakTimer = 10; 
+        coins += 100; // Dar 100 monedas por sobrevivir la ronda
         keys = {}; 
         enemies = [];
         bullets = [];
@@ -907,6 +962,37 @@ function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 
         ctx.restore();
     }
 
+    // Dibujar sombreros activos en el jugador principal
+    if (hasGun && activeHat !== "none") {
+        ctx.save();
+        ctx.fillStyle = activeHat === "vaquero" ? "#8b4513" : "#111111";
+        ctx.strokeStyle = activeHat === "vaquero" ? "#a0522d" : "#333333";
+        ctx.lineWidth = 1.5;
+
+        let hx = cx;
+        let hy = y + (5 * scale);
+
+        if (activeHat === "vaquero") {
+            // Copa del sombrero vaquero
+            ctx.beginPath();
+            ctx.ellipse(hx, hy - 4, 12, 9, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            // Ala del sombrero vaquero
+            ctx.beginPath();
+            ctx.ellipse(hx, hy, 22, 4, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+        } else if (activeHat === "copa") {
+            // Cilindro del sombrero de copa
+            ctx.fillRect(hx - 10, hy - 20, 20, 20);
+            ctx.strokeRect(hx - 10, hy - 20, 20, 20);
+            // Ala del sombrero de copa
+            ctx.fillRect(hx - 16, hy, 32, 3);
+        }
+        ctx.restore();
+    }
+
     if (hasGun) {
         let angle = Math.atan2(mouseY - (y + 35), mouseX - cx);
 
@@ -963,22 +1049,89 @@ function draw() {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#00ffcc"; ctx.font = "bold 60px Arial";
         ctx.shadowColor = "#00ffcc"; ctx.shadowBlur = 10; ctx.textAlign = "center";
-        ctx.fillText("STICKMAN SURVIVOR", canvas.width / 2, canvas.height * 0.35);
+        ctx.fillText("STICKMAN SURVIVOR", canvas.width / 2, canvas.height * 0.28);
         ctx.shadowBlur = 0; 
 
-        let isHover = mouseX >= playButton.x && mouseX <= playButton.x + playButton.width &&
-                      mouseY >= playButton.y && mouseY <= playButton.y + playButton.height;
+        // Monedas en Menú Principal
+        ctx.fillStyle = "#ffd700"; ctx.font = "bold 22px Arial";
+        ctx.fillText(`🪙 MONEDAS: ${coins}`, canvas.width / 2, canvas.height * 0.36);
 
-        ctx.fillStyle = isHover ? "#00ffcc" : "#3a3a4a";
-        ctx.fillRect(playButton.x, playButton.y, playButton.width, playButton.height);
+        // Botón PLAY
+        let hoverPlay = mouseX >= menuButtons.play.x && mouseX <= menuButtons.play.x + menuButtons.play.width &&
+                        mouseY >= menuButtons.play.y && mouseY <= menuButtons.play.y + menuButtons.play.height;
+        ctx.fillStyle = hoverPlay ? "#00ffcc" : "#3a3a4a";
+        ctx.fillRect(menuButtons.play.x, menuButtons.play.y, menuButtons.play.width, menuButtons.play.height);
         ctx.strokeStyle = "#00ffcc"; ctx.lineWidth = 3;
-        ctx.strokeRect(playButton.x, playButton.y, playButton.width, playButton.height);
-        ctx.fillStyle = isHover ? "#000000" : "#ffffff"; ctx.font = "bold 24px Arial";
-        ctx.fillText("PLAY", canvas.width / 2, canvas.height / 2 + 38);
+        ctx.strokeRect(menuButtons.play.x, menuButtons.play.y, menuButtons.play.width, menuButtons.play.height);
+        ctx.fillStyle = hoverPlay ? "#000000" : "#ffffff"; ctx.font = "bold 20px Arial";
+        ctx.fillText(menuButtons.play.text, canvas.width / 2, menuButtons.play.y + 35);
+
+        // Botón TIENDA
+        let hoverShop = mouseX >= menuButtons.shop.x && mouseX <= menuButtons.shop.x + menuButtons.shop.width &&
+                        mouseY >= menuButtons.shop.y && mouseY <= menuButtons.shop.y + menuButtons.shop.height;
+        ctx.fillStyle = hoverShop ? "#ffaa00" : "#3a3a4a";
+        ctx.fillRect(menuButtons.shop.x, menuButtons.shop.y, menuButtons.shop.width, menuButtons.shop.height);
+        ctx.strokeStyle = "#ffaa00";
+        ctx.strokeRect(menuButtons.shop.x, menuButtons.shop.y, menuButtons.shop.width, menuButtons.shop.height);
+        ctx.fillStyle = hoverShop ? "#000000" : "#ffffff"; ctx.font = "bold 16px Arial";
+        ctx.fillText(menuButtons.shop.text, canvas.width / 2, menuButtons.shop.y + 33);
+
         ctx.fillStyle = "#888888"; ctx.font = "16px Arial";
-        ctx.fillText("Controles: A/D (Moverse) - W (Saltar) - Espacio (Disparar) - T (Tienda) - M (Cheats) - U (Pack-A-Punch)", canvas.width / 2, canvas.height * 0.75);
+        ctx.fillText("Controles: A/D (Moverse) - W (Saltar) - Espacio (Disparar) - T (Tienda In-game) - M (Cheats) - U (Pack-A-Punch)", canvas.width / 2, canvas.height * 0.85);
         ctx.textAlign = "left"; 
         return; 
+    }
+
+    if (gameState === "cosmetics_shop") {
+        ctx.fillStyle = "rgba(10, 10, 20, 0.95)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#ffaa00"; ctx.font = "bold 45px Arial"; ctx.textAlign = "center";
+        ctx.fillText("TIENDA DE COSMÉTICOS", canvas.width / 2, canvas.height * 0.15);
+        
+        ctx.fillStyle = "#ffd700"; ctx.font = "bold 24px Arial";
+        ctx.fillText(`Tus Monedas: 🪙 ${coins}`, canvas.width / 2, canvas.height * 0.23);
+
+        let index = 0;
+        for (let key in hatCatalog) {
+            let item = hatCatalog[key];
+            let bx = canvas.width / 2 - 140;
+            let by = canvas.height * 0.35 + (index * 110);
+            let bw = 280, bh = 50;
+
+            let isHover = mouseX >= bx && mouseX <= bx + bw && mouseY >= by && mouseY <= by + bh;
+            
+            if (item.purchased) {
+                ctx.fillStyle = activeHat === key ? "#00ffcc" : "#444455";
+            } else {
+                ctx.fillStyle = coins >= item.cost ? (isHover ? "#ffd700" : "#222232") : "#3a1a1a";
+            }
+
+            ctx.fillRect(bx, by, bw, bh);
+            ctx.strokeStyle = item.purchased ? "#00ffcc" : "#ffaa00";
+            ctx.strokeRect(bx, by, bw, bh);
+
+            ctx.fillStyle = (isHover && !item.purchased && coins >= item.cost) || (activeHat === key) ? "#000000" : "#ffffff";
+            ctx.font = "bold 16px Arial";
+            
+            let btnText = `${item.name} `;
+            if (item.purchased) {
+                btnText += activeHat === key ? "[EQUIPADO]" : "[EQUIPAR]";
+            } else {
+                btnText += `(Costo: ${item.cost} 🪙)`;
+            }
+            ctx.fillText(btnText, canvas.width / 2, by + 30);
+            index++;
+        }
+
+        // Botón Volver al Menú
+        let hoverBack = mouseX >= backToMenuButton.x && mouseX <= backToMenuButton.x + backToMenuButton.width &&
+                        mouseY >= backToMenuButton.y && mouseY <= backToMenuButton.y + backToMenuButton.height;
+        ctx.fillStyle = hoverBack ? "#ffffff" : "#3a3a4a";
+        ctx.fillRect(backToMenuButton.x, backToMenuButton.y, backToMenuButton.width, backToMenuButton.height);
+        ctx.fillStyle = hoverBack ? "#000000" : "#ffffff";
+        ctx.fillText("VOLVER AL MENÚ", canvas.width / 2, backToMenuButton.y + 32);
+        ctx.textAlign = "left";
+        return;
     }
 
     buildings.forEach(bld => {
@@ -1016,7 +1169,7 @@ function draw() {
 
     // PACK-A-PUNCH
     ctx.fillStyle = "#4b0082"; ctx.fillRect(packAPunch.x, packAPunch.y, packAPunch.width, packAPunch.height);
-    ctx.strokeStyle = "#da70d6"; ctx.lineWidth = 3; ctx.strokeRect(packAPunch.x, packAPunch.y, packAPunch.width, packAPunch.height);
+    ctx.strokeStyle = "#da70d6"; ctx.lineWidth = 3; strokeRect(packAPunch.x, packAPunch.y, packAPunch.width, packAPunch.height);
     ctx.fillStyle = Math.floor(Date.now() / 250) % 2 === 0 ? "#00ffff" : "#ff00ff";
     ctx.fillRect(packAPunch.x + 8, packAPunch.y + 10, 8, 8); ctx.fillRect(packAPunch.x + packAPunch.width - 16, packAPunch.y + 10, 8, 8);
 
@@ -1167,7 +1320,9 @@ function draw() {
     if (isRoundBreak) {
         ctx.fillStyle = "rgba(12, 12, 28, 0.92)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#00ffcc"; ctx.font = "bold 42px Arial"; ctx.textAlign = "center";
-        ctx.fillText(`¡RONDA COMPLETADA!`, canvas.width / 2, canvas.height * 0.28);
+        ctx.fillText(`¡RONDA COMPLETADA!`, canvas.width / 2, canvas.height * 0.23);
+        ctx.fillStyle = "#ffd700"; ctx.font = "bold 20px Arial";
+        ctx.fillText(`+100 Monedas de Cosméticos Obtenidas`, canvas.width / 2, canvas.height * 0.29);
         ctx.fillStyle = "#ffffff"; ctx.font = "20px Arial";
         ctx.fillText(`Siguiente ronda en: ${roundBreakTimer}s`, canvas.width / 2, canvas.height * 0.35);
         ctx.fillStyle = "#aaaaaa"; ctx.fillText(`Haz clic para elegir una mejora permanente de inmediato:`, canvas.width / 2, canvas.height * 0.39);
@@ -1240,7 +1395,9 @@ function draw() {
         ctx.fillText("MENÚ DE TRUCOS / CHEATS (Juego Pausado)", canvas.width / 2, canvas.height * 0.2);
         ctx.fillStyle = "#ffffff"; ctx.font = "24px Arial"; ctx.fillText(`Puntuación Actual: ${score} pts`, canvas.width / 2, canvas.height * 0.28);
         ctx.font = "22px Arial"; ctx.fillStyle = "#ffaa00";
-        ctx.fillText("[Presiona 1] Añadir +10,000 Puntos Instantáneos", canvas.width / 2, canvas.height * 0.45);
+        ctx.fillText("[Presiona 1] Añadir +10,000 Puntos Instantáneos", canvas.width / 2, canvas.height * 0.42);
+        ctx.fillStyle = "#ff00ff";
+        ctx.fillText("[Presiona 2] Saltar a la Siguiente Ronda (+1 Ronda)", canvas.width / 2, canvas.height * 0.52);
         ctx.fillStyle = "#aaa"; ctx.font = "18px Arial"; ctx.fillText("Presiona 'M' de nuevo para cerrar el menú de trucos", canvas.width / 2, canvas.height * 0.75);
         ctx.textAlign = "left";
     }
