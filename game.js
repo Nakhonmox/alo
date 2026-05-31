@@ -34,13 +34,11 @@ const buyTopButton = { x: canvas.width / 2 + 20, y: canvas.height / 2, width: 24
 const backToMenuButton = { x: canvas.width / 2 - 100, y: canvas.height / 2 + 150, width: 200, height: 50 };
 
 // ==========================================
-// SISTEMA DE COMBO NUEVO
+// VARIABLES DEL NUEVO SISTEMA DE COMBO Y ENÉMIGO
 // ==========================================
 let comboCount = 0;
 let lastKillTime = 0;
-const comboTimeout = 3000; // 3 segundos en milisegundos
-
-// Intervalo de Spawn para el nuevo enemigo
+const comboTimeout = 3000; // 3 segundos de límite
 let spawnKamikazeInterval = null;
 
 // ==========================================
@@ -157,11 +155,10 @@ function startNextRound() {
     grenades = [];
     particles = [];
     floatingTexts = [];
-    
-    // El combo se limpia opcionalmente al cambiar de ronda
+
+    // Limpieza de combo opcional al iniciar ronda
     comboCount = 0;
 
-    // Lotería de Ronda Especial en múltiplos de 7
     if (currentRound % 7 === 0) {
         specialRoundType = Math.random() > 0.5 ? "speed" : "darkness";
         if (specialRoundType === "speed") {
@@ -176,7 +173,6 @@ function startNextRound() {
     resetIntervals();
 }
 
-// Función auxiliar para reiniciar spawn de enemigos de forma limpia
 function resetIntervals() {
     clearInterval(spawnEnemyInterval);
     clearInterval(spawnFlyingInterval);
@@ -191,17 +187,17 @@ function resetIntervals() {
     if (speedIncrements > 0) {
         baseEnemyTime = Math.max(1000, 2500 - (speedIncrements * 500));
         baseFlyingTime = Math.max(1000, 4000 - (speedIncrements * 500));
-        baseKamikazeTime = Math.max(2500, 6000 - (speedIncrements * 800));
+        baseKamikazeTime = Math.max(2000, 6000 - (speedIncrements * 800));
     }
 
     if (specialRoundType === "speed") {
         spawnFlyingInterval = setInterval(spawnFlyingEnemy, 1200);
-        spawnKamikazeInterval = setInterval(spawnKamikazeEnemy, 3000); // Más kamikazes en ronda de velocidad
+        spawnKamikazeInterval = setInterval(spawnKamikazeEnemy, 3000);
     } else {
         spawnEnemyInterval = setInterval(spawnEnemy, baseEnemyTime);
         spawnFlyingInterval = setInterval(spawnFlyingEnemy, baseFlyingTime);
         spawnShieldedInterval = setInterval(spawnShieldedEnemy, 10000);
-        if (currentRound >= 3) { // El Kamikaze aparece desde la ronda 3 en adelante
+        if (currentRound >= 3) {
             spawnKamikazeInterval = setInterval(spawnKamikazeEnemy, baseKamikazeTime);
         }
     }
@@ -318,12 +314,10 @@ window.addEventListener("mousemove", e => {
 
 window.addEventListener("click", e => {
     if (gameState === "menu") {
-        // Clic en JUGAR
         if (mouseX >= playButton.x && mouseX <= playButton.x + playButton.width &&
             mouseY >= playButton.y && mouseY <= playButton.y + playButton.height) {
             gameState = "playing";
         }
-        // Clic en TIENDA DEL MENÚ
         if (mouseX >= menuShopButton.x && mouseX <= menuShopButton.x + menuShopButton.width &&
             mouseY >= menuShopButton.y && mouseY <= menuShopButton.y + menuShopButton.height) {
             gameState = "menu_shop";
@@ -332,7 +326,6 @@ window.addEventListener("click", e => {
     }
 
     if (gameState === "menu_shop") {
-        // Botón Sombrero Vaquero (5,000 monedas)
         if (mouseX >= buyCowboyButton.x && mouseX <= buyCowboyButton.x + buyCowboyButton.width &&
             mouseY >= buyCowboyButton.y && mouseY <= buyCowboyButton.y + buyCowboyButton.height) {
             if (!purchasedHats.cowboy && coins >= 5000) {
@@ -344,7 +337,6 @@ window.addEventListener("click", e => {
             }
             savePersistentData();
         }
-        // Botón Sombrero de Copa (10,000 monedas)
         if (mouseX >= buyTopButton.x && mouseX <= buyTopButton.x + buyTopButton.width &&
             mouseY >= buyTopButton.y && mouseY <= buyTopButton.y + buyTopButton.height) {
             if (!purchasedHats.top && coins >= 10000) {
@@ -356,7 +348,6 @@ window.addEventListener("click", e => {
             }
             savePersistentData();
         }
-        // Botón Volver al Menú
         if (mouseX >= backToMenuButton.x && mouseX <= backToMenuButton.x + backToMenuButton.width &&
             mouseY >= backToMenuButton.y && mouseY <= backToMenuButton.y + backToMenuButton.height) {
             gameState = "menu";
@@ -404,16 +395,11 @@ window.addEventListener("keydown", e => {
             scoreEl.innerText = score;
             spawnFloatingText(player.x + 20, player.y - 20, "+10000 PTS", "#ffff00");
         }
-        // NUEVA TRAMPA: Saltear Ronda (Presionar '2')
         if (key === "2") {
             spawnFloatingText(canvas.width / 2, canvas.height / 2, "¡RONDA SALTEADA!", "#00ffff");
-            
-            // Forzar las variables para detonar el fin de ronda instantáneamente
             enemiesLeftInRound = 0;
             enemiesSpawnedInRound = getTotalEnemiesForRound(currentRound);
             enemies = [];
-            
-            // Quitar pausa de trucos para procesar el cambio de ronda
             showCheats = false;
             isPaused = false;
         }
@@ -646,7 +632,7 @@ function spawnShieldedEnemy() {
 }
 let spawnShieldedInterval = setInterval(spawnShieldedEnemy, 10000);
 
-// NUEVA FUNCIÓN: Generación del Enemigo Kamikaze
+// FUNCIÓN NUEVA: Spawnear al enemigo Kamikaze
 function spawnKamikazeEnemy() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return;
     let maxForThisRound = getTotalEnemiesForRound(currentRound);
@@ -658,13 +644,13 @@ function spawnKamikazeEnemy() {
         y: floorY - 80,
         width: 40, height: 80,
         velocityY: 0, isGrounded: true,
-        speed: Math.random() * (4.6 - 3.8) + 3.8, // Extremadamente rápido
+        speed: Math.random() * (4.6 - 3.8) + 3.8, // Muy veloz
         color: "#ff2222",
         isBoss: false,
         isFlying: false,
         isShielded: false,
-        isKamikaze: true, // Identificador de tipo único
-        lives: 1, // Muere de forma instantánea de un tiro
+        isKamikaze: true, 
+        lives: 1, 
         maxLives: 1,
         flashTimer: 0
     });
@@ -696,24 +682,21 @@ setInterval(() => {
     if (gameState === "playing" && player.lives > 0 && !isPaused && !isRoundBreak) medkits.push({ x: Math.random() * (canvas.width - 100) + 50, y: floorY - 25, width: 25, height: 25 }); 
 }, 60000);
 
-// NUEVA FUNCIÓN: Detonación del enemigo Kamikaze y Daño en Área (Reacción en cadena)
+// FUNCIÓN NUEVA: Explosión del Kamikaze y Daño Colateral (Reacción en cadena)
 function explodeKamikaze(kamikazeEnemy) {
     let explosionRadius = 160; 
     let kx = kamikazeEnemy.x + kamikazeEnemy.width / 2;
     let ky = kamikazeEnemy.y + kamikazeEnemy.height / 2;
 
-    // Efectos de explosión masivos
     spawnParticles(kx, ky, "#ff4500", 35, true);
     spawnParticles(kx, ky, "#ffcc00", 15, false);
     spawnFloatingText(kx, ky - 30, "¡BOOM!", "#ff1111");
 
-    // 1. Dañar al jugador si está en rango
     let distToPlayer = Math.sqrt(Math.pow((player.x + player.width / 2) - kx, 2) + Math.pow((player.y + player.height / 2) - ky, 2));
     if (distToPlayer < explosionRadius) {
         damagePlayer(1);
     }
 
-    // 2. Dañar a otros enemigos en rango (Reacción en cadena)
     enemies.forEach((otherEnemy) => {
         if (otherEnemy === kamikazeEnemy || otherEnemy.lives <= 0) return;
 
@@ -722,7 +705,7 @@ function explodeKamikaze(kamikazeEnemy) {
         let distToEnemy = Math.sqrt(Math.pow(ox - kx, 2) + Math.pow(oy - ky, 2));
 
         if (distToEnemy < explosionRadius) {
-            let chainDamage = 5; // Daño crítico para matar esbirros base
+            let chainDamage = 5; 
             otherEnemy.lives -= chainDamage;
             spawnFloatingText(ox, oy, `-${chainDamage} ONDA`, "#ff6600");
             
@@ -733,20 +716,18 @@ function explodeKamikaze(kamikazeEnemy) {
     });
 }
 
-// NUEVA FUNCIÓN: Centralización de muertes para administrar los Combos
+// FUNCIÓN NUEVA: Gestión centralizada de puntos y combos al abatir enemigos
 function handleEnemyDefeat(enemy) {
     let now = Date.now();
     if (now - lastKillTime <= comboTimeout) {
         comboCount++;
     } else {
-        comboCount = 1; // Primer baja o racha recuperada
+        comboCount = 1; 
     }
     lastKillTime = now;
 
-    // Puntos bases de la baja
     let basePts = enemy.isBoss ? 150 : (enemy.isShielded ? 100 : (enemy.isKamikaze ? 75 : 50));
     
-    // Determinación del multiplicador de Combo
     let multiplier = 1;
     if (comboCount >= 5) multiplier = 5;
     else if (comboCount >= 3) multiplier = 3;
@@ -762,7 +743,6 @@ function handleEnemyDefeat(enemy) {
     let textDisplay = multiplier > 1 ? `+${totalPts} (X${multiplier})` : `+${totalPts}`;
     spawnFloatingText(enemy.x + enemy.width / 2, enemy.y - 20, textDisplay, "#00ff66");
 
-    // Ejecutar explosión si era un Kamikaze
     if (enemy.isKamikaze) {
         explodeKamikaze(enemy);
     }
@@ -797,7 +777,6 @@ function damagePlayer(amount) {
 function update() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused) return; 
 
-    // Actualización de Partículas
     for (let i = particles.length - 1; i >= 0; i--) {
         let p = particles[i];
         p.x += p.vx;
@@ -807,7 +786,6 @@ function update() {
         if (p.alpha <= 0) particles.splice(i, 1);
     }
 
-    // Actualización de Textos Flotantes
     for (let i = floatingTexts.length - 1; i >= 0; i--) {
         let ft = floatingTexts[i];
         ft.y += ft.vy;
@@ -815,7 +793,6 @@ function update() {
         if (ft.life <= 0) floatingTexts.splice(i, 1);
     }
 
-    // Temporizadores de regeneración de plataformas
     platforms.forEach(plat => {
         if (plat.destroyed) {
             plat.repairTimer--;
@@ -826,7 +803,6 @@ function update() {
         }
     });
 
-    // RECOMPENSA DE MONEDAS AL PASAR LA RONDA
     if (enemiesLeftInRound <= 0 && !isRoundBreak) {
         isRoundBreak = true;
         roundBreakTimer = 10; 
@@ -838,9 +814,8 @@ function update() {
         dragonSpawned = false;
         dragon = null;
         specialRoundType = "none";
-        comboCount = 0; // Limpiar combo al finalizar ronda
+        comboCount = 0;
         
-        // Agregar +100 monedas por sobrevivir
         coins += 100;
         savePersistentData();
         spawnFloatingText(player.x + 20, player.y - 40, "+100 MONEDAS", "#00ff66");
@@ -871,7 +846,6 @@ function update() {
         if (player.invulnerableTimer <= 0) player.isInvulnerable = false;
     }
 
-    // PACK-A-PUNCH
     let playerCenterX = player.x + player.width / 2;
     let playerCenterY = player.y + player.height / 2;
     let nearPackAPunch = (playerCenterX > packAPunch.x - 30 && playerCenterX < packAPunch.x + packAPunch.width + 30 &&
@@ -995,7 +969,6 @@ function update() {
             if (enemy.x < player.x) { enemy.x += enemy.speed; enemy.facing = 1; } 
             else { enemy.x -= enemy.speed; enemy.facing = -1; }
 
-            // Lógica de parpadeo de color visual para el Kamikaze
             if (enemy.isKamikaze) {
                 enemy.flashTimer += 0.25;
             }
@@ -1009,7 +982,6 @@ function update() {
                     }
                 });
                 
-                // Los kamikazes no arrojan granadas comunes
                 if (!enemy.isKamikaze) {
                     if (player.y < enemy.y && enemy.isGrounded && Math.random() < 0.02) {
                         enemy.velocityY = -12; enemy.isGrounded = false;
@@ -1033,11 +1005,10 @@ function update() {
             }
         }
 
-        // Colisión directa del cuerpo del enemigo contra el jugador
         if (checkCollision(player, enemy)) {
             if (enemy.isKamikaze) {
                 enemy.lives = 0;
-                handleEnemyDefeat(enemy); // Detona y procesa combo/baja automáticamente
+                handleEnemyDefeat(enemy);
                 enemies.splice(eIndex, 1);
             } else {
                 damagePlayer(enemy.isBoss ? 2 : 1);
@@ -1053,15 +1024,12 @@ function update() {
                 bullets.splice(bIndex, 1);
 
                 if (enemy.lives <= 0) {
-                    handleEnemyDefeat(enemy); // Centraliza puntuación escalada y explosiones
+                    handleEnemyDefeat(enemy);
                     enemies.splice(eIndex, 1);
                 }
             }
         });
-    }
-
-
-);
+    });
 
     if (dragonSpawned && dragon) {
         let now = Date.now();
@@ -1079,7 +1047,6 @@ function update() {
         }
     });
 
-    // SISTEMA NUEVO: Control de expiración de Combo por inactividad (3 segundos)
     if (comboCount > 0 && Date.now() - lastKillTime > comboTimeout) {
         comboCount = 0;
     }
@@ -1089,7 +1056,6 @@ function checkCollision(rect1, rect2) {
     return rect1.x < rect2.x + rect2.width && rect1.x + rect1.width > rect2.x && rect1.y < rect2.y + rect2.height && rect1.y + rect1.height > rect2.y;
 }
 
-// RENDERIZADO DEL SOMBRERO COSMÉTICO
 function drawHat(cx, y, scale, facingRight) {
     if (equippedHat === "none") return;
     ctx.save();
@@ -1098,7 +1064,7 @@ function drawHat(cx, y, scale, facingRight) {
     let hatX = cx;
 
     if (equippedHat === "cowboy") {
-        ctx.fillStyle = "#8b4513"; // Marrón
+        ctx.fillStyle = "#8b4513"; 
         ctx.strokeStyle = "#5c2e0b";
         ctx.lineWidth = 2;
         
@@ -1119,7 +1085,7 @@ function drawHat(cx, y, scale, facingRight) {
         ctx.fillStyle = "#111111";
         ctx.fillRect(hatX - 9 * scale, hatY - 2, 18 * scale, 3 * scale);
     } else if (equippedHat === "top") {
-        ctx.fillStyle = "#1a1a1a"; // Negro elegante
+        ctx.fillStyle = "#1a1a1a"; 
         ctx.strokeStyle = "#000000";
         ctx.lineWidth = 2;
         
@@ -1214,7 +1180,6 @@ function draw() {
     ctx.lineWidth = 4;
     ctx.beginPath(); ctx.moveTo(0, floorY); ctx.lineTo(canvas.width, floorY); ctx.stroke();
 
-    // RENDER DEL PACK-A-PUNCH
     ctx.fillStyle = "#4a0e4e";
     ctx.fillRect(packAPunch.x, packAPunch.y, packAPunch.width, packAPunch.height);
     ctx.fillStyle = "#9c27b0";
@@ -1256,14 +1221,13 @@ function draw() {
     enemies.forEach(enemy => {
         let currentRenderColor = enemy.color;
         
-        // El Kamikaze parpadea intensamente alternando rojo y blanco en base a su timer
         if (enemy.isKamikaze) {
             currentRenderColor = Math.floor(enemy.flashTimer) % 2 === 0 ? "#ff0000" : "#ffffff";
         }
 
         drawStickman(
             enemy.x, enemy.y, currentRenderColor, 
-            !enemy.isFlying && !enemy.isKamikaze, // Al kamikaze no le dibujamos arma de fuego
+            !enemy.isFlying && !enemy.isKamikaze, 
             enemy.facing === 1, false, 
             enemy.isBoss ? 2 : 1, enemy.isFlying, enemy.isShielded
         );
@@ -1310,7 +1274,6 @@ function draw() {
         ctx.fillText(ft.text, ft.x, ft.y); ctx.restore();
     });
 
-    // RENDERIZADO DE INTERFAZ DEL JUGADOR
     if (gameState === "playing") {
         ctx.textAlign = "left"; ctx.fillStyle = "#fff"; ctx.font = "bold 20px Arial";
         ctx.fillText(`RONDA: ${currentRound}`, 30, 45);
@@ -1339,7 +1302,6 @@ function draw() {
         ctx.fillStyle = "rgba(255,255,255,0.2)"; ctx.font = "14px Arial";
         ctx.fillText("Controles: A/D (Mover) | W (Saltar) | Espacio (Disparar) | Mantén [O] Regenerar Escudo | [T] Menú de Armas", 30, canvas.height - 20);
 
-        // RENDER DE RONDAS ESPECIALES
         if (specialRoundType === "speed") {
             ctx.fillStyle = "rgba(255, 69, 0, 0.15)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = "#ff4500"; ctx.font = "bold 22px Arial"; ctx.textAlign = "center";
@@ -1355,7 +1317,7 @@ function draw() {
             ctx.fillText("¡ALERTA: EL JEFE DRAGÓN SE APROXIMA!", canvas.width / 2, canvas.height * 0.3);
         }
 
-        // NUEVO RENDER: Interfaz del Sistema de Combo e Inactividad
+        // INTERFAZ DEL NUEVO CONTADOR DE COMBO
         if (comboCount >= 2) {
             ctx.save();
             ctx.textAlign = "right";
@@ -1371,7 +1333,7 @@ function draw() {
             ctx.font = "bold 32px Arial";
             ctx.fillText(`COMBO ${comboLabel}`, canvas.width - 30, 45);
 
-            // Medidor decreciente de los 3 segundos del combo
+            // Barra visual del tiempo del combo (3 segundos)
             let msPassed = Date.now() - lastKillTime;
             let timeLeftRatio = Math.max(0, (comboTimeout - msPassed) / comboTimeout);
             
@@ -1383,7 +1345,6 @@ function draw() {
             ctx.restore();
         }
 
-        // RENDER DE RECESO / TIEMPO DE MEJORAS ENTRE RONDAS
         if (isRoundBreak) {
             ctx.fillStyle = "rgba(10, 8, 16, 0.92)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = "#00ffcc"; ctx.font = "bold 42px Arial"; ctx.textAlign = "center";
@@ -1424,21 +1385,18 @@ function draw() {
         ctx.fillText("TIENDA DE COSMÉTICOS PERMANENTES", canvas.width / 2, canvas.height * 0.2);
         ctx.fillStyle = "#fff"; ctx.font = "22px Arial"; ctx.fillText(`Monedas Disponibles: $${coins}`, canvas.width / 2, canvas.height * 0.28);
 
-        // Item 1: Sombrero Vaquero
         ctx.fillStyle = purchasedHats.cowboy ? "#4caf50" : "#333";
         ctx.fillRect(buyCowboyButton.x, buyCowboyButton.y, buyCowboyButton.width, buyCowboyButton.height);
         ctx.fillStyle = "#fff"; ctx.font = "bold 16px Arial";
         let txtCowboy = purchasedHats.cowboy ? (equippedHat === "cowboy" ? "DESEQUIPAR VAQUERO" : "EQUIPAR VAQUERO") : "COMPRAR VAQUERO ($5,000)";
         ctx.fillText(txtCowboy, buyCowboyButton.x + buyCowboyButton.width / 2, buyCowboyButton.y + 36);
 
-        // Item 2: Sombrero de Copa
         ctx.fillStyle = purchasedHats.top ? "#4caf50" : "#333";
         ctx.fillRect(buyTopButton.x, buyTopButton.y, buyTopButton.width, buyTopButton.height);
         ctx.fillStyle = "#fff";
         let txtTop = purchasedHats.top ? (equippedHat === "top" ? "DESEQUIPAR COPA" : "EQUIPAR COPA") : "COMPRAR COPA ($10,000)";
         ctx.fillText(txtTop, buyTopButton.x + buyTopButton.width / 2, buyTopButton.y + 36);
 
-        // Volver
         ctx.fillStyle = "#9e9e9e"; ctx.fillRect(backToMenuButton.x, backToMenuButton.y, backToMenuButton.width, backToMenuButton.height);
         ctx.fillStyle = "#111"; ctx.fillText("VOLVER AL MENÚ", backToMenuButton.x + backToMenuButton.width / 2, backToMenuButton.y + 32);
         ctx.textAlign = "left";
