@@ -2,6 +2,307 @@ const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 const scoreEl = document.getElementById("score");
 
+// ==========================================
+// SISTEMA DE AUDIO (Web Audio API — sin archivos externos)
+// ==========================================
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playSound(type) {
+    if (!audioCtx) return;
+    // Reanudar contexto si el navegador lo suspendió (política autoplay)
+    if (audioCtx.state === "suspended") audioCtx.resume();
+
+    const now = audioCtx.currentTime;
+
+    if (type === "shoot") {
+        // Click corto y seco de disparo
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = "square";
+        osc.frequency.setValueAtTime(320, now);
+        osc.frequency.exponentialRampToValueAtTime(80, now + 0.07);
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        osc.start(now); osc.stop(now + 0.08);
+
+    } else if (type === "shoot_rifle") {
+        // Disparo grave y potente
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        const dist = audioCtx.createWaveShaper();
+        const curve = new Float32Array(256);
+        for (let i = 0; i < 256; i++) curve[i] = (i < 128 ? -1 : 1);
+        dist.curve = curve;
+        osc.connect(dist); dist.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(180, now);
+        osc.frequency.exponentialRampToValueAtTime(40, now + 0.15);
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+        osc.start(now); osc.stop(now + 0.18);
+
+    } else if (type === "shoot_mp5") {
+        // Ráfaga ligera
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(260, now);
+        osc.frequency.exponentialRampToValueAtTime(100, now + 0.05);
+        gain.gain.setValueAtTime(0.14, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+        osc.start(now); osc.stop(now + 0.06);
+
+    } else if (type === "reload") {
+        // Clic mecánico doble
+        [0, 0.12].forEach(offset => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.type = "square";
+            osc.frequency.setValueAtTime(600, now + offset);
+            osc.frequency.exponentialRampToValueAtTime(200, now + offset + 0.06);
+            gain.gain.setValueAtTime(0.1, now + offset);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.07);
+            osc.start(now + offset); osc.stop(now + offset + 0.07);
+        });
+
+    } else if (type === "hit_enemy") {
+        // Golpe corto
+        const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.06, audioCtx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+        const src = audioCtx.createBufferSource();
+        const gain = audioCtx.createGain();
+        src.buffer = buf; src.connect(gain); gain.connect(audioCtx.destination);
+        gain.gain.setValueAtTime(0.22, now);
+        src.start(now);
+
+    } else if (type === "explosion") {
+        // Explosión grave con ruido
+        const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.5, audioCtx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 1.5);
+        const src = audioCtx.createBufferSource();
+        const gain = audioCtx.createGain();
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = "lowpass"; filter.frequency.value = 400;
+        src.buffer = buf; src.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+        gain.gain.setValueAtTime(0.7, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+        src.start(now);
+
+    } else if (type === "player_hit") {
+        // Impacto doloroso — tono bajo + ruido
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(120, now);
+        osc.frequency.exponentialRampToValueAtTime(40, now + 0.25);
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+        osc.start(now); osc.stop(now + 0.28);
+
+    } else if (type === "dash") {
+        // Whoosh rápido
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.exponentialRampToValueAtTime(200, now + 0.18);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+        osc.start(now); osc.stop(now + 0.2);
+
+    } else if (type === "jump") {
+        // Boing
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(180, now);
+        osc.frequency.exponentialRampToValueAtTime(500, now + 0.12);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+        osc.start(now); osc.stop(now + 0.14);
+
+    } else if (type === "kill") {
+        // Ding satisfactorio
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(880, now);
+        osc.frequency.setValueAtTime(1100, now + 0.05);
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+        osc.start(now); osc.stop(now + 0.18);
+
+    } else if (type === "combo") {
+        // Acorde ascendente de combo
+        [0, 0.07, 0.14].forEach((offset, i) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.type = "sine";
+            osc.frequency.value = [660, 880, 1100][i];
+            gain.gain.setValueAtTime(0.1, now + offset);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.2);
+            osc.start(now + offset); osc.stop(now + offset + 0.2);
+        });
+
+    } else if (type === "round_complete") {
+        // Fanfarria corta
+        [0, 0.1, 0.2, 0.35].forEach((offset, i) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.type = "square";
+            osc.frequency.value = [523, 659, 784, 1047][i];
+            gain.gain.setValueAtTime(0.1, now + offset);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.25);
+            osc.start(now + offset); osc.stop(now + offset + 0.25);
+        });
+
+    } else if (type === "game_over") {
+        // Melodía descendente triste
+        [0, 0.22, 0.44, 0.7].forEach((offset, i) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.type = "sine";
+            osc.frequency.value = [440, 349, 294, 220][i];
+            gain.gain.setValueAtTime(0.15, now + offset);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.35);
+            osc.start(now + offset); osc.stop(now + offset + 0.35);
+        });
+
+    } else if (type === "upgrade") {
+        // Chime brillante de mejora
+        [0, 0.08, 0.16, 0.24].forEach((offset, i) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.type = "sine";
+            osc.frequency.value = [523, 659, 784, 1047][i];
+            gain.gain.setValueAtTime(0.08, now + offset);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.3);
+            osc.start(now + offset); osc.stop(now + offset + 0.3);
+        });
+
+    } else if (type === "buy") {
+        // Caja registradora
+        [0, 0.1].forEach((offset, i) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.type = "sine";
+            osc.frequency.value = [880, 1320][i];
+            gain.gain.setValueAtTime(0.1, now + offset);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.15);
+            osc.start(now + offset); osc.stop(now + offset + 0.15);
+        });
+    }
+}
+
+// Música de fondo generativa (loop ambiental)
+let musicNodes = [];
+let musicPlaying = false;
+
+function startMusic() {
+    if (musicPlaying) return;
+    musicPlaying = true;
+    playMusicLoop();
+}
+
+function stopMusic() {
+    musicPlaying = false;
+    musicNodes.forEach(n => { try { n.stop(); } catch(e){} });
+    musicNodes = [];
+}
+
+function playMusicLoop() {
+    if (!musicPlaying) return;
+    const now = audioCtx.currentTime;
+    const bpm = 140;
+    const beat = 60 / bpm;
+    const bars = 8;
+    const totalTime = beat * 4 * bars;
+
+    // Bajo pulsante
+    const bassNotes = [55, 55, 65, 55, 49, 55, 65, 73];
+    bassNotes.forEach((freq, i) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = "sawtooth";
+        osc.frequency.value = freq;
+        const t = now + i * beat;
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.07, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + beat * 0.8);
+        osc.start(t); osc.stop(t + beat);
+        musicNodes.push(osc);
+    });
+
+    // Arpegio de fondo
+    const arpNotes = [220, 277, 330, 415, 220, 277, 370, 440];
+    arpNotes.forEach((freq, i) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = "bandpass"; filter.frequency.value = 800; filter.Q.value = 2;
+        osc.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = "square";
+        osc.frequency.value = freq;
+        const t = now + i * (beat / 2);
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.025, t + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + beat * 0.4);
+        osc.start(t); osc.stop(t + beat * 0.4);
+        musicNodes.push(osc);
+    });
+
+    // Bombo en tiempos 1 y 3
+    [0, beat * 2, beat * 4, beat * 6].forEach(offset => {
+        const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.18, audioCtx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 2) * 0.5;
+        }
+        const osc = audioCtx.createOscillator();
+        const oscGain = audioCtx.createGain();
+        osc.type = "sine"; osc.frequency.setValueAtTime(120, now + offset);
+        osc.frequency.exponentialRampToValueAtTime(40, now + offset + 0.1);
+        osc.connect(oscGain); oscGain.connect(audioCtx.destination);
+        oscGain.gain.setValueAtTime(0.12, now + offset);
+        oscGain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.18);
+        osc.start(now + offset); osc.stop(now + offset + 0.18);
+        musicNodes.push(osc);
+    });
+
+    // Caja en tiempos 2 y 4
+    [beat, beat * 3, beat * 5, beat * 7].forEach(offset => {
+        const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.1, audioCtx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+        const src = audioCtx.createBufferSource();
+        const gain = audioCtx.createGain();
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = "highpass"; filter.frequency.value = 2000;
+        src.buffer = buf; src.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+        gain.gain.setValueAtTime(0.08, now + offset);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.1);
+        src.start(now + offset);
+        musicNodes.push(src);
+    });
+
+    setTimeout(() => { if (musicPlaying) { musicNodes = []; playMusicLoop(); } }, totalTime * 1000 - 100);
+}
+
 // Ajustar canvas al tamaño completo del monitor
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
@@ -78,8 +379,9 @@ const COMBO_TIMEOUT = 300; // 5 segundos a 60fps
 function registerKill() {
     comboCount++;
     comboTimer = COMBO_TIMEOUT;
-    if (comboCount >= 10) {
+    if (comboCount >= 10 && comboCount % 10 === 0) {
         spawnFloatingText(player.x + 20, player.y - 50, `x${comboCount} COMBO!!`, "#ff4500");
+        playSound("combo");
     }
 }
 
@@ -98,7 +400,12 @@ const dashSystem = {
 // ==========================================
 // SISTEMA DE ESTADOS DEL JUEGO
 // ==========================================
-let gameState = "menu"; // "menu", "menu_shop", "playing"
+let gameState = "menu"; // "menu", "menu_shop", "playing", "gameover"
+
+// Variables de Game Over
+let gameOverScore = 0;
+let gameOverRound = 0;
+const gameOverButton = { x: 0, y: 0, width: 220, height: 60 }; // posición calculada en draw
 
 const playButton = {
     x: canvas.width / 2 - 100,
@@ -326,11 +633,20 @@ window.addEventListener("mousemove", e => {
 });
 
 window.addEventListener("click", e => {
+    // GAME OVER — botón reiniciar
+    if (gameState === "gameover") {
+        if (mouseX >= gameOverButton.x && mouseX <= gameOverButton.x + gameOverButton.width &&
+            mouseY >= gameOverButton.y && mouseY <= gameOverButton.y + gameOverButton.height) {
+            document.location.reload();
+        }
+        return;
+    }
+
     if (gameState === "menu") {
-        // Clic en JUGAR
         if (mouseX >= playButton.x && mouseX <= playButton.x + playButton.width &&
             mouseY >= playButton.y && mouseY <= playButton.y + playButton.height) {
             gameState = "playing";
+            startMusic();
         }
         // Clic en TIENDA DEL MENÚ
         if (mouseX >= menuShopButton.x && mouseX <= menuShopButton.x + menuShopButton.width &&
@@ -390,6 +706,7 @@ window.addEventListener("click", e => {
                     player.ammo = player.maxAmmo; 
                 }
                 startNextRound();
+                playSound("upgrade");
             }
         });
     }
@@ -497,6 +814,7 @@ window.addEventListener("keydown", e => {
         player.isInvulnerable = true;
         player.invulnerableTimer = dashSystem.dashDuration;
         spawnParticles(player.x + player.width / 2, player.y + player.height / 2, "#00ffcc", 12);
+        playSound("dash");
         return;
     }
 
@@ -529,6 +847,16 @@ window.addEventListener("keydown", e => {
                 color: weaponData.color,
                 damage: weaponData.damage
             });
+
+            // Sonido según arma
+            if (player.currentWeapon === "rifle" || player.currentWeapon === "galil") {
+                playSound("shoot_rifle");
+            } else if (player.currentWeapon === "mp5") {
+                playSound("shoot_mp5");
+            } else {
+                playSound("shoot");
+            }
+
             if (player.ammo <= 0) startReload();
         }
     }
@@ -536,6 +864,7 @@ window.addEventListener("keydown", e => {
 
 function startReload() {
     player.isReloading = true;
+    playSound("reload");
     if (player.currentWeapon === "mp5") player.reloadTimer = 60;
     else if (player.currentWeapon === "duales") player.reloadTimer = 70;
     else if (player.currentWeapon === "rifle") player.reloadTimer = 100;
@@ -729,9 +1058,13 @@ function damagePlayer(amount) {
 
     player.isInvulnerable = true;
     player.invulnerableTimer = 90; 
+    playSound("player_hit");
     if (player.lives <= 0) {
-        alert(`¡Game Over! Puntuación: ${score} | Llegaste a la Ronda: ${currentRound}`);
-        document.location.reload();
+        gameOverScore = score;
+        gameOverRound = currentRound;
+        gameState = "gameover";
+        stopMusic();
+        playSound("game_over");
     }
 }
 
@@ -740,6 +1073,7 @@ function kamikazeExplode(kamikaze, killedByBullet = false) {
     spawnParticles(kamikaze.x + kamikaze.width / 2, kamikaze.y + kamikaze.height / 2, "#ff4500", 50, true);
     spawnParticles(kamikaze.x + kamikaze.width / 2, kamikaze.y + kamikaze.height / 2, "#ffaa00", 30);
     spawnFloatingText(kamikaze.x + kamikaze.width / 2, kamikaze.y - 20, "💥 BOOM!", "#ff4500");
+    playSound("explosion");
 
     // Daño al jugador si está cerca
     let playerDist = Math.sqrt(
@@ -843,6 +1177,7 @@ function update() {
         dragonSpawned = false;
         dragon = null;
         specialRoundType = "none";
+        playSound("round_complete");
         
         // Agregar +100 monedas por sobrevivir
         coins += 100;
@@ -895,6 +1230,7 @@ function update() {
             scoreEl.innerText = score;
 
             spawnFloatingText(packAPunch.x + 25, packAPunch.y - 40, "¡ARMA MEJORADA!", "#00ffcc");
+            playSound("upgrade");
 
             packAPunch.isUpgrading = false;
             packAPunch.chargeProgress = 0;
@@ -907,7 +1243,7 @@ function update() {
     if (!shieldSystem.isCharging && !packAPunch.isUpgrading) {
         if (keys["a"] && player.x > 0) { player.x -= player.speed; }
         if (keys["d"] && player.x < canvas.width - player.width) { player.x += player.speed; }
-        if (keys["w"] && player.isGrounded) { player.velocityY = -player.jumpForce; player.isGrounded = false; }
+        if (keys["w"] && player.isGrounded) { player.velocityY = -player.jumpForce; player.isGrounded = false; playSound("jump"); }
     }
 
     player.velocityY += gravity; player.y += player.velocityY;
@@ -1065,6 +1401,7 @@ function update() {
                 let particleColor = enemy.isShielded ? "#00bfff" : "#ff0033";
                 spawnParticles(bullet.x, bullet.y, particleColor, 6);
                 spawnFloatingText(enemy.x + enemy.width / 2, enemy.y, `-${bullet.damage}`, "#ff3333");
+                playSound("hit_enemy");
 
                 bullets.splice(bIndex, 1);
 
@@ -1075,6 +1412,7 @@ function update() {
 
                     spawnParticles(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, particleColor, 25, true);
                     spawnFloatingText(enemy.x + enemy.width / 2, enemy.y - 20, `+${ptsGained}`, "#00ff66");
+                    playSound("kill");
 
                     if (enemy.isKamikaze) {
                         kamikazeExplode(enemy, true);
@@ -1239,6 +1577,81 @@ function draw() {
 
     ctx.fillStyle = "#ffffff"; stars.forEach(s => ctx.fillRect(s.x, s.y, s.size, s.size));
 
+    // PANTALLA: GAME OVER
+    if (gameState === "gameover") {
+        // Fondo oscuro con viñeta roja
+        ctx.fillStyle = "rgba(8, 0, 0, 0.92)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Pulso rojo ambiental
+        let pulse = Math.sin(Date.now() / 600) * 0.06 + 0.08;
+        ctx.fillStyle = `rgba(180, 0, 0, ${pulse})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.textAlign = "center";
+
+        // Título GAME OVER con glow
+        ctx.save();
+        ctx.shadowColor = "#ff0000";
+        ctx.shadowBlur = 40;
+        ctx.fillStyle = "#ff2222";
+        ctx.font = "bold 90px Arial";
+        ctx.fillText("GAME OVER", canvas.width / 2, canvas.height * 0.25);
+        ctx.restore();
+
+        // Línea separadora
+        ctx.strokeStyle = "#ff333388";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(canvas.width / 2 - 280, canvas.height * 0.32);
+        ctx.lineTo(canvas.width / 2 + 280, canvas.height * 0.32);
+        ctx.stroke();
+
+        // Estadísticas
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 30px Arial";
+        ctx.fillText("Puntuación Final", canvas.width / 2, canvas.height * 0.40);
+
+        ctx.fillStyle = "#00ffcc";
+        ctx.font = "bold 56px Arial";
+        ctx.fillText(gameOverScore.toLocaleString() + " pts", canvas.width / 2, canvas.height * 0.50);
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 26px Arial";
+        ctx.fillText(`Ronda alcanzada:  ${gameOverRound}`, canvas.width / 2, canvas.height * 0.59);
+
+        // Mejor puntuación
+        let best = parseInt(localStorage.getItem("stickman_highscore")) || 0;
+        if (gameOverScore > best) {
+            best = gameOverScore;
+            localStorage.setItem("stickman_highscore", best);
+            ctx.fillStyle = "#ffd700";
+            ctx.font = "bold 22px Arial";
+            ctx.fillText("🏆 ¡NUEVO RÉCORD!", canvas.width / 2, canvas.height * 0.66);
+        } else {
+            ctx.fillStyle = "#888888";
+            ctx.font = "20px Arial";
+            ctx.fillText(`Récord: ${best.toLocaleString()} pts`, canvas.width / 2, canvas.height * 0.66);
+        }
+
+        // Botón REINICIAR
+        gameOverButton.x = canvas.width / 2 - gameOverButton.width / 2;
+        gameOverButton.y = canvas.height * 0.74;
+        let isHoverGO = mouseX >= gameOverButton.x && mouseX <= gameOverButton.x + gameOverButton.width &&
+                        mouseY >= gameOverButton.y && mouseY <= gameOverButton.y + gameOverButton.height;
+        ctx.fillStyle = isHoverGO ? "#ff4444" : "#2a0a0a";
+        ctx.fillRect(gameOverButton.x, gameOverButton.y, gameOverButton.width, gameOverButton.height);
+        ctx.strokeStyle = "#ff4444";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(gameOverButton.x, gameOverButton.y, gameOverButton.width, gameOverButton.height);
+        ctx.fillStyle = isHoverGO ? "#000000" : "#ff4444";
+        ctx.font = "bold 24px Arial";
+        ctx.fillText("🔄 REINTENTAR", canvas.width / 2, gameOverButton.y + 40);
+
+        ctx.textAlign = "left";
+        return;
+    }
+
     // PANTALLA: MENÚ PRINCIPAL
     if (gameState === "menu") {
         ctx.fillStyle = "rgba(10, 10, 20, 0.8)";
@@ -1251,6 +1664,13 @@ function draw() {
         // Monedas permanentes arriba a la derecha
         ctx.fillStyle = "#ffd700"; ctx.font = "bold 22px Arial";
         ctx.fillText(`🪙 Monedas Totales: ${coins}`, canvas.width - 200, 45);
+
+        // Récord
+        let hs = parseInt(localStorage.getItem("stickman_highscore")) || 0;
+        if (hs > 0) {
+            ctx.fillStyle = "#aaaaaa"; ctx.font = "18px Arial";
+            ctx.fillText(`🏆 Récord: ${hs.toLocaleString()} pts`, canvas.width / 2, canvas.height * 0.38);
+        }
 
         // Botón JUGAR
         let isHoverPlay = mouseX >= playButton.x && mouseX <= playButton.x + playButton.width &&
