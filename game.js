@@ -317,9 +317,10 @@ const floorY = canvas.height - 60;
 // ==========================================
 // NUEVO SISTEMA DE MONEDAS Y TIENDA PERMANENTE (MENÚ)
 // ==========================================
+// Guardamos datos en localStorage para que no se pierdan al morir (ya que el juego se reinicia)
 let coins = parseInt(localStorage.getItem("stickman_coins")) || 0;
 let purchasedHats = JSON.parse(localStorage.getItem("stickman_hats")) || { cowboy: false, top: false };
-let equippedHat = localStorage.getItem("stickman_equipped_hat") || "none"; 
+let equippedHat = localStorage.getItem("stickman_equipped_hat") || "none"; // "none", "cowboy", "top"
 
 function savePersistentData() {
     localStorage.setItem("stickman_coins", coins);
@@ -350,8 +351,8 @@ function spawnParticles(x, y, color, count, isDeath = false) {
             color: color,
             alpha: 1,
             decay: Math.random() * 0.02 + 0.01,
-            isChunk: isDeath && Math.random() > 0.4, 
-            chunkType: Math.floor(Math.random() * 3) 
+            isChunk: isDeath && Math.random() > 0.4, // Trozos de stickman
+            chunkType: Math.floor(Math.random() * 3) // 0: cabeza, 1: brazo, 2: torso
         });
     }
 }
@@ -372,8 +373,8 @@ function spawnFloatingText(x, y, text, color) {
 // SISTEMA DE COMBO
 // ==========================================
 let comboCount = 0;
-let comboTimer = 0;       
-const COMBO_TIMEOUT = 300; 
+let comboTimer = 0;       // frames restantes antes de que el combo expire
+const COMBO_TIMEOUT = 300; // 5 segundos a 60fps
 
 function registerKill() {
     comboCount++;
@@ -390,21 +391,21 @@ function registerKill() {
 const dashSystem = {
     isDashing: false,
     dashTimer: 0,
-    dashDuration: 30,      
+    dashDuration: 30,      // 0.5s a 60fps
     dashCooldown: 0,
-    dashCooldownMax: 90,   
+    dashCooldownMax: 90,   // 1.5s de enfriamiento
     dashSpeed: 22
 };
 
 // ==========================================
 // SISTEMA DE ESTADOS DEL JUEGO
 // ==========================================
-let gameState = "menu"; 
+let gameState = "menu"; // "menu", "menu_shop", "playing", "gameover"
 
 // Variables de Game Over
 let gameOverScore = 0;
 let gameOverRound = 0;
-const gameOverButton = { x: 0, y: 0, width: 220, height: 60 }; 
+const gameOverButton = { x: 0, y: 0, width: 220, height: 60 }; // posición calculada en draw
 
 const playButton = {
     x: canvas.width / 2 - 100,
@@ -421,7 +422,6 @@ let showCheats = false;
 let gameTimer = 0;
 let dragonSpawned = false;
 let dragonWarning = false;
-let bossCounter = 0; // Lleva el conteo total de jefes generados para rotar tipos
 
 // SISTEMA DE RONDAS Y MEJORAS DE INTERMEDIO
 let currentRound = 1;
@@ -431,7 +431,7 @@ let isRoundBreak = false;
 let roundBreakTimer = 0; 
 
 // NUEVAS VARIABLES PARA RONDAS ESPECIALES (MÚLTIPLOS DE 7)
-let specialRoundType = "none"; 
+let specialRoundType = "none"; // "none", "speed", "darkness"
 
 const upgradeOptions = [
     { id: "red_heart", text: "+1 Corazón Rojo Max", color: "#ff2266", x: 0, y: 0, w: 280, h: 70 },
@@ -482,6 +482,7 @@ function startNextRound() {
     particles = [];
     floatingTexts = [];
 
+    // Lotería de Ronda Especial en múltiplos de 7
     if (currentRound % 7 === 0) {
         specialRoundType = Math.random() > 0.5 ? "speed" : "darkness";
         if (specialRoundType === "speed") {
@@ -496,6 +497,7 @@ function startNextRound() {
     resetIntervals();
 }
 
+// Función auxiliar para reiniciar spawn de enemigos de forma limpia
 function resetIntervals() {
     clearInterval(spawnEnemyInterval);
     clearInterval(spawnFlyingInterval);
@@ -631,6 +633,7 @@ window.addEventListener("mousemove", e => {
 });
 
 window.addEventListener("click", e => {
+    // GAME OVER — botón reiniciar
     if (gameState === "gameover") {
         if (mouseX >= gameOverButton.x && mouseX <= gameOverButton.x + gameOverButton.width &&
             mouseY >= gameOverButton.y && mouseY <= gameOverButton.y + gameOverButton.height) {
@@ -645,6 +648,7 @@ window.addEventListener("click", e => {
             gameState = "playing";
             startMusic();
         }
+        // Clic en TIENDA DEL MENÚ
         if (mouseX >= menuShopButton.x && mouseX <= menuShopButton.x + menuShopButton.width &&
             mouseY >= menuShopButton.y && mouseY <= menuShopButton.y + menuShopButton.height) {
             gameState = "menu_shop";
@@ -653,6 +657,7 @@ window.addEventListener("click", e => {
     }
 
     if (gameState === "menu_shop") {
+        // Botón Sombrero Vaquero (5,000 monedas)
         if (mouseX >= buyCowboyButton.x && mouseX <= buyCowboyButton.x + buyCowboyButton.width &&
             mouseY >= buyCowboyButton.y && mouseY <= buyCowboyButton.y + buyCowboyButton.height) {
             if (!purchasedHats.cowboy && coins >= 5000) {
@@ -664,6 +669,7 @@ window.addEventListener("click", e => {
             }
             savePersistentData();
         }
+        // Botón Sombrero de Copa (10,000 monedas)
         if (mouseX >= buyTopButton.x && mouseX <= buyTopButton.x + buyTopButton.width &&
             mouseY >= buyTopButton.y && mouseY <= buyTopButton.y + buyTopButton.height) {
             if (!purchasedHats.top && coins >= 10000) {
@@ -675,6 +681,7 @@ window.addEventListener("click", e => {
             }
             savePersistentData();
         }
+        // Botón Volver al Menú
         if (mouseX >= backToMenuButton.x && mouseX <= backToMenuButton.x + backToMenuButton.width &&
             mouseY >= backToMenuButton.y && mouseY <= backToMenuButton.y + backToMenuButton.height) {
             gameState = "menu";
@@ -723,9 +730,16 @@ window.addEventListener("keydown", e => {
             scoreEl.innerText = score;
             spawnFloatingText(player.x + 20, player.y - 20, "+10000 PTS", "#ffff00");
         }
+        // NUEVA TRAMPA: Saltear Ronda (Presionar '2')
         if (key === "2") {
-            spawnFloatingText(canvas.width / 2, canvas.height / 2, "¡RONDA DE JEFES FORZADA!", "#00ffff");
-            gameTimer = Math.floor(gameTimer / 180) * 180 + 179; // Adelanta el timer al borde de activación del jefe
+            spawnFloatingText(canvas.width / 2, canvas.height / 2, "¡RONDA SALTEADA!", "#00ffff");
+            
+            // Forzar las variables para detonar el fin de ronda instantáneamente
+            enemiesLeftInRound = 0;
+            enemiesSpawnedInRound = getTotalEnemiesForRound(currentRound);
+            enemies = [];
+            
+            // Quitar pausa de trucos para procesar el cambio de ronda
             showCheats = false;
             isPaused = false;
         }
@@ -791,7 +805,8 @@ function equipWeapon(weaponId) {
 }
 
 window.addEventListener("keydown", e => {
-    if (gameState !== "playing" || isRoundBreak || isPaused || packAPunch.isUpgrading) return;
+    if (gameState !== "playing" || isRoundBreak || isPaused || packAPunch.isUpgrading) return; 
+    
     if (e.key === "Shift" && !dashSystem.isDashing && dashSystem.dashCooldown <= 0 && player.lives > 0) {
         dashSystem.isDashing = true;
         dashSystem.dashTimer = dashSystem.dashDuration;
@@ -806,21 +821,26 @@ window.addEventListener("keydown", e => {
     if (e.key === " " && player.lives > 0) {
         const now = Date.now();
         if (now - player.lastShotTime < player.shootCooldown) return;
+
         if (player.ammo > 0) {
             player.ammo--;
             player.lastShotTime = now;
+
             let originX = player.x + player.width / 2;
             let originY = player.y + 35;
             let angle = Math.atan2(mouseY - originY, mouseX - originX);
+
             const weaponData = weaponsCatalog[player.currentWeapon];
+
             let bulletSpreadY = 0;
             if (player.currentWeapon === "duales") {
                 bulletSpreadY = (player.ammo % 2 === 0) ? -6 : 6;
             }
+
             bullets.push({
                 x: originX,
                 y: originY + bulletSpreadY,
-                width: (player.currentWeapon === "rifle" || player.currentWeapon === "galil") ? 18 : 10,
+                width: (player.currentWeapon === "rifle" || player.currentWeapon === "galil") ? 18 : 10, 
                 height: (player.currentWeapon === "rifle" || player.currentWeapon === "galil") ? 6 : 4,
                 speedX: Math.cos(angle) * 18,
                 speedY: Math.sin(angle) * 18,
@@ -828,6 +848,7 @@ window.addEventListener("keydown", e => {
                 damage: weaponData.damage
             });
 
+            // Sonido según arma
             if (player.currentWeapon === "rifle" || player.currentWeapon === "galil") {
                 playSound("shoot_rifle");
             } else if (player.currentWeapon === "mp5") {
@@ -851,96 +872,34 @@ function startReload() {
     else player.reloadTimer = 80;
 }
 
-// ==========================================
-// NUEVO SISTEMA DINÁMICO DE GENERACIÓN DE JEFES (3 TIPOS CÍCLICOS)
-// ==========================================
-function spawnDragon() {
-    playSound("explosion");
-    bossCounter++;
-    
-    // Calcula el tipo cíclicamente (Jefe 1, Jefe 2, Jefe 3)
-    let bossType = ((bossCounter - 1) % 3) + 1;
-    let baseHealth = 1500 + currentRound * 400;
-
-    if (bossType === 1) {
-        // JEFE 1: Dragón Terrestre Infernal (Persigue y salta plataformas)
-        dragon = {
-            type: 1,
-            name: "DRAGÓN INFERNAL (Terrestre)",
-            x: canvas.width - 150,
-            y: floorY - 100,
-            width: 100,
-            height: 100,
-            vx: 0,
-            vy: 0,
-            speed: 2.3,
-            health: baseHealth,
-            maxHealth: baseHealth,
-            shootCooldown: 1200,
-            lastShootTime: 0,
-            color: "#2e1a47", 
-            secondaryColor: "#ff3300",
-            grounded: false
-        };
-    } else if (bossType === 2) {
-        // JEFE 2: Dragón Celestial (Vuela de lado a lado en el cielo)
-        dragon = {
-            type: 2,
-            name: "DRAGÓN CELESTIAL (Volador)",
-            x: 100,
-            y: 80, 
-            width: 120,
-            height: 70,
-            vx: 4.5, 
-            vy: 0,
-            speed: 4.5,
-            health: Math.floor(baseHealth * 0.85),
-            maxHealth: Math.floor(baseHealth * 0.85),
-            shootCooldown: 900, 
-            lastShootTime: 0,
-            color: "#1a473a", 
-            secondaryColor: "#00ffcc",
-            sinAnim: 0 
-        };
-    } else if (bossType === 3) {
-        // JEFE 3: Cabeza Ancestral de Titán (Estática a la izquierda, ráfagas pesadas)
-        dragon = {
-            type: 3,
-            name: "CABEZA ANCESTRAL DE TITÁN",
-            x: 5, 
-            y: 160,
-            width: 150,
-            height: 260, 
-            health: Math.floor(baseHealth * 1.35), 
-            maxHealth: Math.floor(baseHealth * 1.35),
-            shootCooldown: 1600,
-            lastShootTime: 0,
-            color: "#4a5568", 
-            secondaryColor: "#ff0055",
-            pulseAnim: 0
-        };
-    }
-}
-
-// Reloj interno del juego para disparar alertas y jefes
 setInterval(() => {
-    if (gameState !== "playing" || isPaused || player.lives <= 0) return;
+    if (gameState !== "playing" || isPaused || player.lives <= 0) return; 
+    
     if (isRoundBreak) {
         roundBreakTimer--;
         if (roundBreakTimer <= 0) {
             startNextRound();
         }
-        return;
+        return; 
     }
+
     gameTimer++;
+
     if (gameTimer % 180 === 175) {
         dragonWarning = true;
     }
+
     if (gameTimer % 180 === 0 && gameTimer > 0) {
         dragonWarning = false;
-        enemies = [];
+        enemies = []; 
         dragonSpawned = true;
-        spawnDragon(); 
+        dragon = {
+            x: canvas.width - 320, 
+            y: floorY - 380,
+            width: 320, height: 380,
+            lives: 50, maxLives: 50,
+            lastShot: 0
+        };
     }
 }, 1000);
 
@@ -950,15 +909,29 @@ function sampleEnemySpawn() {
 }
 
 function spawnEnemy() {
-    if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return;
-    if (specialRoundType === "speed") return;
+    if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return; 
+    if (specialRoundType === "speed") return; 
     if (!sampleEnemySpawn()) return;
-    let extraHealth = Math.floor(currentRound / 5);
-    enemiesSpawnedInRound++;
-    enemies.push({ x: Math.random() > 0.5 ? canvas.width + 20 : -50, y: floorY - 80, width: 40, height: 80, velocityY: 0, isGrounded: true, speed: Math.random() * (2.5 - 1.2) + 1.2, color: "#ff3333", isBoss: false, isFlying: false, isShielded: false, lives: 2 + extraHealth, maxLives: 2 + extraHealth, lastGrenade: Date.now() + Math.random() * 2000 });
-}
 
-let spawnEnemyInterval = setInterval(spawnEnemy, 2500);
+    let extraHealth = Math.floor(currentRound / 5);
+
+    enemiesSpawnedInRound++;
+    enemies.push({
+        x: Math.random() > 0.5 ? canvas.width + 20 : -50,
+        y: floorY - 80,
+        width: 40, height: 80,
+        velocityY: 0, isGrounded: true,
+        speed: Math.random() * (2.5 - 1.2) + 1.2,
+        color: "#ff3333",
+        isBoss: false,
+        isFlying: false,
+        isShielded: false,
+        lives: 2 + extraHealth, 
+        maxLives: 2 + extraHealth,
+        lastGrenade: Date.now() + Math.random() * 2000
+    });
+}
+let spawnEnemyInterval = setInterval(spawnEnemy, 2500); 
 
 function sampleFlyingSpawn() {
     let maxForThisRound = getTotalEnemiesForRound(currentRound);
@@ -971,153 +944,179 @@ function sampleShieldedSpawn() {
 }
 
 function spawnFlyingEnemy() {
-    if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return;
+    if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return; 
     if (!sampleFlyingSpawn()) return;
+
     let extraHealth = Math.floor(currentRound / 5);
     let isSpeedRound = specialRoundType === "speed";
-    enemiesSpawnedInRound++;
-    enemies.push({ x: Math.random() > 0.5 ? canvas.width + 20 : -50, y: Math.random() * (floorY - 250) + 50, width: 40, height: 60, speed: isSpeedRound ? 4.8 : 2.2, color: isSpeedRound ? "#ff1493" : "#ff8c00", isBoss: false, isFlying: true, isShielded: false, lives: 2 + extraHealth, maxLives: 2 + extraHealth, lastGrenade: 0 });
-}
 
+    enemiesSpawnedInRound++;
+    enemies.push({
+        x: Math.random() > 0.5 ? canvas.width + 20 : -50,
+        y: Math.random() * (floorY - 250) + 50, 
+        width: 40, height: 60,
+        speed: isSpeedRound ? 4.8 : 2.2, 
+        color: isSpeedRound ? "#ff1493" : "#ff8c00",
+        isBoss: false,
+        isFlying: true,
+        isShielded: false,
+        lives: isSpeedRound ? 1 : (1 + extraHealth), 
+        maxLives: isSpeedRound ? 1 : (1 + extraHealth)
+    });
+}
 let spawnFlyingInterval = setInterval(spawnFlyingEnemy, 4000);
 
 function spawnShieldedEnemy() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return;
     if (!sampleShieldedSpawn()) return;
-    let extraHealth = Math.floor(currentRound / 4);
-    enemiesSpawnedInRound++;
-    enemies.push({ x: Math.random() > 0.5 ? canvas.width + 20 : -50, y: floorY - 80, width: 45, height: 80, velocityY: 0, isGrounded: true, speed: 1.1, color: "#94a3b8", isBoss: false, isFlying: false, isShielded: true, lives: 5 + extraHealth, maxLives: 5 + extraHealth, lastGrenade: 0 });
-}
 
+    let extraHealth = Math.floor(currentRound / 5);
+
+    enemiesSpawnedInRound++;
+    enemies.push({
+        x: Math.random() > 0.5 ? canvas.width + 20 : -50,
+        y: floorY - 80,
+        width: 45, height: 80,
+        velocityY: 0, isGrounded: true,
+        speed: 1.5, 
+        color: "#4f5d75", 
+        isBoss: false,
+        isFlying: false,
+        isShielded: true,
+        lives: 5 + extraHealth, 
+        maxLives: 5 + extraHealth,
+        lastGrenade: Date.now() + Math.random() * 3000
+    });
+}
 let spawnShieldedInterval = setInterval(spawnShieldedEnemy, 10000);
 
 function spawnKamikazeEnemy() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak) return;
+    if (currentRound < 3) return; // Aparece desde la ronda 3
     let maxForThisRound = getTotalEnemiesForRound(currentRound);
-    if (currentRound < 4 || enemiesSpawnedInRound >= maxForThisRound || specialRoundType === "speed") return;
-    enemiesSpawnedInRound++;
-    enemies.push({ x: Math.random() > 0.5 ? canvas.width + 20 : -50, y: floorY - 70, width: 35, height: 70, velocityY: 0, isGrounded: true, speed: 3.5, color: "#f59e0b", isBoss: false, isFlying: false, isShielded: false, isKamikaze: true, lives: 1, maxLives: 1, lastGrenade: 0 });
-}
+    if (enemiesSpawnedInRound >= maxForThisRound) return;
 
+    enemiesSpawnedInRound++;
+    enemies.push({
+        x: Math.random() > 0.5 ? canvas.width + 20 : -50,
+        y: floorY - 80,
+        width: 40, height: 80,
+        velocityY: 0, isGrounded: true,
+        speed: 4.5,
+        color: "#ff3333",
+        isBoss: false,
+        isFlying: false,
+        isShielded: false,
+        isKamikaze: true,
+        blinkTimer: 0,
+        lives: 1, maxLives: 1,
+        lastGrenade: Date.now() + 99999 // no tira granadas
+    });
+}
 let spawnKamikazeInterval = setInterval(spawnKamikazeEnemy, 12000);
 
-function update(dt) {
-    if (gameState !== "playing" || isPaused) return;
+function spawnBoss() {
+    if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak || specialRoundType === "speed") return; 
+    
+    let extraHealth = Math.floor(currentRound / 5);
 
+    enemies.push({
+        x: canvas.width + 100,
+        y: floorY - 160,
+        width: 80, height: 160,
+        velocityY: 0, isGrounded: true,
+        speed: 1.0,
+        color: "#990000",
+        isBoss: true,
+        isFlying: false,
+        isShielded: false,
+        lives: 10 + extraHealth, maxLives: 10 + extraHealth,
+        lastShot: Date.now()
+    });
+}
+setInterval(spawnBoss, 30000);
+
+setInterval(() => { 
+    if (gameState === "playing" && player.lives > 0 && !isPaused && !isRoundBreak) medkits.push({ x: Math.random() * (canvas.width - 100) + 50, y: floorY - 25, width: 25, height: 25 }); 
+}, 60000);
+
+function damagePlayer(amount) {
+    if (player.isInvulnerable || player.lives <= 0 || isRoundBreak) return;
+    
+    shieldSystem.isCharging = false;
+    shieldSystem.chargeProgress = 0;
+
+    if (shieldSystem.current > 0) {
+        shieldSystem.current -= amount;
+        if (shieldSystem.current < 0) {
+            player.lives += shieldSystem.current; 
+            shieldSystem.current = 0;
+        }
+    } else {
+        player.lives -= amount;
+    }
+
+    player.isInvulnerable = true;
+    player.invulnerableTimer = 90; 
+    playSound("player_hit");
     if (player.lives <= 0) {
-        gameState = "gameover";
         gameOverScore = score;
         gameOverRound = currentRound;
+        gameState = "gameover";
         stopMusic();
         playSound("game_over");
-        return;
+    }
+}
+
+function kamikazeExplode(kamikaze, killedByBullet = false) {
+    const EXPLODE_RADIUS = 120;
+    spawnParticles(kamikaze.x + kamikaze.width / 2, kamikaze.y + kamikaze.height / 2, "#ff4500", 50, true);
+    spawnParticles(kamikaze.x + kamikaze.width / 2, kamikaze.y + kamikaze.height / 2, "#ffaa00", 30);
+    spawnFloatingText(kamikaze.x + kamikaze.width / 2, kamikaze.y - 20, "💥 BOOM!", "#ff4500");
+    playSound("explosion");
+
+    // Daño al jugador si está cerca
+    let playerDist = Math.sqrt(
+        Math.pow((player.x + player.width / 2) - (kamikaze.x + kamikaze.width / 2), 2) +
+        Math.pow((player.y + player.height / 2) - (kamikaze.y + kamikaze.height / 2), 2)
+    );
+    if (playerDist < EXPLODE_RADIUS && !dashSystem.isDashing) {
+        damagePlayer(1);
     }
 
-    // Temporizador e inmunidad por dash
-    if (dashSystem.isDashing) {
-        dashSystem.dashTimer--;
-        player.x += player.facing * dashSystem.dashSpeed;
-        if (player.x < 0) player.x = 0;
-        if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
-        if (dashSystem.dashTimer <= 0) dashSystem.isDashing = false;
-    } else {
-        if (keys["a"] || keys["arrowleft"]) { player.x -= player.speed; player.facing = -1; }
-        if (keys["d"] || keys["arrowright"]) { player.x += player.speed; player.facing = 1; }
-        if (player.x < 0) player.x = 0;
-        if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
-    }
-
-    if (dashSystem.dashCooldown > 0) dashSystem.dashCooldown--;
-
-    if (player.invulnerableTimer > 0) {
-        player.invulnerableTimer--;
-        if (player.invulnerableTimer <= 0) player.isInvulnerable = false;
-    }
-
-    // Manejo de Gravedad de Jugador
-    player.velocityY += gravity;
-    player.y += player.velocityY;
-    player.isGrounded = false;
-
-    if (player.y + player.height >= floorY) {
-        player.y = floorY - player.height;
-        player.velocityY = 0;
-        player.isGrounded = true;
-    }
-
-    // Colisión con plataformas mecánicas
-    platforms.forEach(p => {
-        if (p.destroyed) {
-            p.repairTimer--;
-            if (p.repairTimer <= 0) p.destroyed = false;
-            return;
-        }
-        if (player.x + player.width > p.x && player.x < p.x + p.width) {
-            if (player.y + player.height >= p.y && player.y + player.height - player.velocityY <= p.y + 12) {
-                if (player.velocityY >= 0) {
-                    player.y = p.y - player.height;
-                    player.velocityY = 0;
-                    player.isGrounded = true;
-                }
-            }
-        }
-    });
-
-    if ((keys["w"] || keys["space"] || keys["arrowup"]) && player.isGrounded && !dashSystem.isDashing) {
-        player.velocityY = -player.jumpForce;
-        player.isGrounded = false;
-        playSound("jump");
-    }
-
-    if (player.isReloading) {
-        player.reloadTimer--;
-        if (player.reloadTimer <= 0) {
-            player.isReloading = false;
-            player.ammo = player.maxAmmo;
-        }
-    }
-
-    // Recarga pasiva del escudo azul
-    if (!shieldSystem.isCharging && shieldSystem.current < shieldSystem.max) {
-        shieldSystem.isCharging = true;
-        shieldSystem.chargeProgress = 0;
-    }
-    if (shieldSystem.isCharging) {
-        shieldSystem.chargeProgress++;
-        if (shieldSystem.chargeProgress >= shieldSystem.requiredFrames) {
-            shieldSystem.current++;
-            shieldSystem.isCharging = false;
-        }
-    }
-
-    // Carga interactiva de la máquina Pack-A-Punch
-    if (player.x + player.width > packAPunch.x && player.x < packAPunch.x + packAPunch.width &&
-        player.y + player.height >= packAPunch.y && player.y <= packAPunch.y + packAPunch.height) {
-        if (score >= packAPunch.cost && !packAPunch.isUpgrading) {
-            if (keys["e"]) {
-                packAPunch.isUpgrading = true;
-                packAPunch.chargeProgress = 0;
-                playSound("reload");
+    // Reacción en cadena: daña a otros enemigos cercanos
+    let chainKills = 0;
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        let other = enemies[i];
+        if (other === kamikaze) continue;
+        let dx = (other.x + other.width / 2) - (kamikaze.x + kamikaze.width / 2);
+        let dy = (other.y + other.height / 2) - (kamikaze.y + kamikaze.height / 2);
+        let dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < EXPLODE_RADIUS) {
+            other.lives -= 3;
+            spawnParticles(other.x + other.width / 2, other.y + other.height / 2, "#ff6600", 12);
+            if (other.lives <= 0) {
+                let pts = other.isBoss ? 150 : (other.isShielded ? 100 : 50);
+                score += pts;
+                scoreEl.innerText = score;
+                spawnFloatingText(other.x + other.width / 2, other.y - 20, `+${pts} CADENA!`, "#ff9900");
+                spawnParticles(other.x + other.width / 2, other.y + other.height / 2, "#ff3300", 20, true);
+                enemies.splice(i, 1);
+                enemiesLeftInRound--;
+                chainKills++;
+                registerKill();
             }
         }
     }
-    if (packAPunch.isUpgrading) {
-        packAPunch.chargeProgress++;
-        if (packAPunch.chargeProgress >= packAPunch.requiredFrames) {
-            score -= packAPunch.cost;
-            scoreEl.innerText = score;
-            packAPunch.isUpgrading = false;
-            weaponsCatalog[player.currentWeapon].upgradeLevel++;
-            weaponsCatalog[player.currentWeapon].damage += 2;
-            weaponsCatalog[player.currentWeapon].baseAmmo += 5;
-            updatePlayerStats();
-            player.ammo = player.maxAmmo;
-            spawnFloatingText(player.x, player.y - 40, "¡ARMA MEJORADA!", "#00ffff");
-            playSound("buy");
-        }
+    if (chainKills > 1) {
+        spawnFloatingText(kamikaze.x + kamikaze.width / 2, kamikaze.y - 50, `¡x${chainKills} CADENA!`, "#ff4500");
     }
+}
 
-    // Reducción del combo timer
+function update() {
+    if (gameState !== "playing" || player.lives <= 0 || isPaused) return; 
+
+    // ACTUALIZAR COMBO
     if (comboCount > 0) {
         comboTimer--;
         if (comboTimer <= 0) {
@@ -1125,801 +1124,944 @@ function update(dt) {
         }
     }
 
-    // Balas del jugador
-    for (let i = bullets.length - 1; i >= 0; i--) {
-        let b = bullets[i];
-        b.x += b.speedX;
-        b.y += b.speedY;
-
-        if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
-            bullets.splice(i, 1);
-            continue;
-        }
-
-        // Colisión con el jefe dinámico activo
-        if (dragonSpawned && dragon) {
-            if (b.x > dragon.x && b.x < dragon.x + dragon.width && b.y > dragon.y && b.y < dragon.y + dragon.height) {
-                dragon.health -= b.damage;
-                spawnParticles(b.x, b.y, dragon.secondaryColor, 3);
-                playSound("hit_enemy");
-                bullets.splice(i, 1);
-
-                if (dragon.health <= 0) {
-                    score += 5000;
-                    coins += 150;
-                    scoreEl.innerText = score;
-                    savePersistentData();
-                    spawnParticles(dragon.x + dragon.width / 2, dragon.y + dragon.height / 2, dragon.color, 45, true);
-                    spawnFloatingText(dragon.x + dragon.width / 2, dragon.y, "+5000 PTS / +150 Monedas", "#ffff00");
-                    dragon = null;
-                    dragonSpawned = false;
-                    gameTimer = 0;
-                    
-                    if (enemiesLeftInRound <= 0) {
-                        isRoundBreak = true;
-                        roundBreakTimer = 400;
-                        playSound("round_complete");
-                    }
-                }
-                continue;
-            }
-        }
-
-        // Colisión con enemigos comunes
-        for (let j = enemies.length - 1; j >= 0; j--) {
-            let e = enemies[j];
-            if (b.x + b.width > e.x && b.x < e.x + e.width && b.y + b.height > e.y && b.y < e.y + e.height) {
-                if (e.isShielded && b.speedX * (e.x + e.width/2 - player.x) > 0) {
-                    e.lives -= Math.max(1, Math.floor(b.damage * 0.4));
-                } else {
-                    e.lives -= b.damage;
-                }
-                spawnParticles(b.x, b.y, e.color, 4);
-                playSound("hit_enemy");
-                bullets.splice(i, 1);
-
-                if (e.lives <= 0) {
-                    let reward = e.isShielded ? 250 : (e.isFlying ? 180 : 100);
-                    score += reward;
-                    coins += e.isShielded ? 5 : 2;
-                    scoreEl.innerText = score;
-                    savePersistentData();
-                    registerKill();
-                    spawnParticles(e.x + e.width / 2, e.y + e.height / 2, e.color, 16, true);
-                    enemies.splice(j, 1);
-                    enemiesLeftInRound--;
-
-                    if (Math.random() < 0.08) {
-                        medkits.push({ x: e.x, y: floorY - 25, width: 25, height: 25 });
-                    }
-
-                    if (enemiesLeftInRound <= 0 && !dragonSpawned) {
-                        isRoundBreak = true;
-                        roundBreakTimer = 400;
-                        playSound("round_complete");
-                    }
-                }
-                break;
-            }
+    // ACTUALIZAR DASH
+    if (dashSystem.isDashing) {
+        dashSystem.dashTimer--;
+        let dashDir = player.facing;
+        let newX = player.x + dashDir * dashSystem.dashSpeed;
+        newX = Math.max(0, Math.min(canvas.width - player.width, newX));
+        player.x = newX;
+        spawnParticles(player.x + player.width / 2, player.y + player.height / 2, "#00ffcc", 3);
+        if (dashSystem.dashTimer <= 0) {
+            dashSystem.isDashing = false;
         }
     }
-
-    // Comportamiento del enemigo común e Inteligencia Artificial
-    for (let i = enemies.length - 1; i >= 0; i--) {
-        let e = enemies[i];
-
-        if (e.isFlying) {
-            let dx = player.x - e.x;
-            let dy = player.y - e.y;
-            let dist = Math.sqrt(dx*dx + dy*dy);
-            if (dist > 5) {
-                e.x += (dx / dist) * e.speed;
-                e.y += (dy / dist) * e.speed;
-            }
-        } else {
-            let dir = player.x - e.x > 0 ? 1 : -1;
-            e.x += dir * e.speed;
-
-            e.velocityY += gravity;
-            e.y += e.velocityY;
-            e.isGrounded = false;
-
-            if (e.y + e.height >= floorY) {
-                e.y = floorY - e.height;
-                e.velocityY = 0;
-                e.isGrounded = true;
-            }
-
-            platforms.forEach(p => {
-                if (p.destroyed) return;
-                if (e.x + e.width > p.x && e.x < p.x + p.width) {
-                    if (e.y + e.height >= p.y && e.y + e.height - e.velocityY <= p.y + 12) {
-                        if (e.velocityY >= 0) {
-                            e.y = p.y - e.height;
-                            e.velocityY = 0;
-                            e.isGrounded = true;
-                        }
-                    }
-                }
-            });
-
-            if (e.isGrounded && Math.random() < 0.015 && player.y < e.y - 40) {
-                e.velocityY = -11;
-                e.isGrounded = false;
-            }
-
-            if (e.isKamikaze) {
-                let pDistX = Math.abs((player.x + player.width/2) - (e.x + e.width/2));
-                let pDistY = Math.abs((player.y + player.height/2) - (e.y + e.height/2));
-                if (pDistX < 50 && pDistY < 60) {
-                    if (!player.isInvulnerable) {
-                        if (shieldSystem.current > 0) shieldSystem.current--;
-                        else player.lives--;
-                        playSound("player_hit");
-                    }
-                    playSound("explosion");
-                    spawnParticles(e.x + e.width/2, e.y + e.height/2, "#f59e0b", 22, true);
-                    enemies.splice(i, 1);
-                    enemiesLeftInRound--;
-                    if (enemiesLeftInRound <= 0 && !dragonSpawned) {
-                        isRoundBreak = true;
-                        roundBreakTimer = 400;
-                        playSound("round_complete");
-                    }
-                    continue;
-                }
-            }
-
-            if (!e.isShielded && !e.isKamikaze && Date.now() - e.lastGrenade > 4500 && Math.abs(player.x - e.x) < 400) {
-                let launchAngle = dir === 1 ? -Math.PI / 4 : -3 * Math.PI / 4;
-                grenades.push({
-                    x: e.x + e.width / 2,
-                    y: e.y + 10,
-                    vx: Math.cos(launchAngle) * 7,
-                    vy: Math.sin(launchAngle) * 9,
-                    timer: 130,
-                    radius: 7
-                });
-                e.lastGrenade = Date.now() + Math.random() * 2000;
-            }
-        }
-
-        // Ataque físico o colisión con el jugador
-        if (!player.isInvulnerable && player.x < e.x + e.width && player.x + player.width > e.x &&
-            player.y < e.y + e.height && player.y + player.height > e.y) {
-            player.isInvulnerable = true;
-            player.invulnerableTimer = 60; 
-            if (shieldSystem.current > 0) shieldSystem.current--;
-            else player.lives--;
-            playSound("player_hit");
-            spawnParticles(player.x + player.width / 2, player.y + player.height / 2, "#ff0000", 8);
-        }
-    }
-
-    // ==========================================
-    // CONTROL DE COMPORTAMIENTO DE LOS 3 JEFES
-    // ==========================================
-    if (dragonSpawned && dragon) {
-        let now = Date.now();
-
-        if (dragon.type === 1) {
-            // JEFE 1: Terrestre Seguidor
-            let dirX = player.x - (dragon.x + dragon.width / 2);
-            dragon.vx = dirX > 0 ? dragon.speed : -dragon.speed;
-            
-            dragon.vy += 0.5; // Gravedad del jefe
-            dragon.x += dragon.vx;
-            dragon.y += dragon.vy;
-
-            dragon.grounded = false;
-            if (dragon.y + dragon.height >= floorY) {
-                dragon.y = floorY - dragon.height;
-                dragon.vy = 0;
-                dragon.grounded = true;
-            }
-
-            for (let p of platforms) {
-                if (dragon.x + dragon.width > p.x && dragon.x < p.x + p.width) {
-                    if (dragon.y + dragon.height >= p.y && dragon.y + dragon.height - dragon.vy <= p.y + 15) {
-                        if (dragon.vy >= 0) {
-                            dragon.y = p.y - dragon.height;
-                            dragon.vy = 0;
-                            dragon.grounded = true;
-                        }
-                    }
-                }
-            }
-            if (dragon.grounded && (player.y < dragon.y - 40 || dragon.x <= 10 || dragon.x >= canvas.width - dragon.width - 10) && Math.random() < 0.02) {
-                dragon.vy = -12;
-            }
-            if (dragon.x < 0) dragon.x = 0;
-            if (dragon.x + dragon.width > canvas.width) dragon.x = canvas.width - dragon.width;
-
-            // Fuego directo
-            if (now - dragon.lastShootTime > dragon.shootCooldown) {
-                let targetAngle = Math.atan2((player.y + 16) - (dragon.y + dragon.height/2), player.x - (dragon.x + dragon.width/2));
-                enemyBullets.push({
-                    x: dragon.x + dragon.width / 2,
-                    y: dragon.y + dragon.height / 2,
-                    vx: Math.cos(targetAngle) * 6.5,
-                    vy: Math.sin(targetAngle) * 6.5,
-                    size: 14,
-                    color: "#ff4500"
-                });
-                dragon.lastShootTime = now;
-                playSound("shoot");
-            }
-
-        } else if (dragon.type === 2) {
-            // JEFE 2: Volador de Lado a Lado
-            dragon.sinAnim += 0.05;
-            dragon.x += dragon.vx;
-            dragon.y = 80 + Math.sin(dragon.sinAnim) * 25;
-
-            if (dragon.x <= 0) { dragon.vx = dragon.speed; }
-            if (dragon.x + dragon.width >= canvas.width) { dragon.vx = -dragon.speed; }
-
-            // Bombardeo dual vertical
-            if (now - dragon.lastShootTime > dragon.shootCooldown) {
-                enemyBullets.push({ x: dragon.x + dragon.width * 0.2, y: dragon.y + dragon.height, vx: -0.5, vy: 5.5, size: 12, color: "#00ffcc" });
-                enemyBullets.push({ x: dragon.x + dragon.width * 0.8, y: dragon.y + dragon.height, vx: 0.5, vy: 5.5, size: 12, color: "#00ffcc" });
-                dragon.lastShootTime = now;
-                playSound("shoot_mp5");
-            }
-
-        } else if (dragon.type === 3) {
-            // JEFE 3: Cabeza Gigante Izquierda Estática
-            dragon.pulseAnim += 0.03;
-            dragon.y = 150 + Math.sin(dragon.pulseAnim) * 7;
-
-            // Ráfaga pesada de 3 esferas horizontales
-            if (now - dragon.lastShootTime > dragon.shootCooldown) {
-                enemyBullets.push({ x: dragon.x + dragon.width, y: dragon.y + dragon.height * 0.2, vx: 6, vy: -1, size: 16, color: "#ff0055" });
-                enemyBullets.push({ x: dragon.x + dragon.width, y: dragon.y + dragon.height * 0.5, vx: 6.5, vy: 0, size: 18, color: "#ff0055" });
-                enemyBullets.push({ x: dragon.x + dragon.width, y: dragon.y + dragon.height * 0.8, vx: 6, vy: 1, size: 16, color: "#ff0055" });
-                dragon.lastShootTime = now;
-                playSound("shoot_rifle");
-            }
-        }
-
-        // Colisión por contacto físico directo con cualquier jefe activo
-        if (!player.isInvulnerable && player.x < dragon.x + dragon.width && player.x + player.width > dragon.x &&
-            player.y < dragon.y + dragon.height && player.y + player.height > dragon.y) {
-            if (shieldSystem.current > 0) shieldSystem.current--;
-            else player.lives--;
-            player.isInvulnerable = true;
-            player.invulnerableTimer = 45;
-            playSound("player_hit");
-        }
-    }
-
-    // Balas de los enemigos comunes y jefes
-    for (let i = enemyBullets.length - 1; i >= 0; i--) {
-        let eb = enemyBullets[i];
-        eb.x += eb.vx || eb.speedX || 0; 
-        eb.y += eb.vy || eb.speedY || 0; 
-
-        // Si no venían con el nuevo formato, usar los valores por compatibilidad
-        if (eb.speedX !== undefined && eb.vx === undefined) { eb.vx = eb.speedX; eb.vy = eb.speedY; }
-
-        if (eb.x < 0 || eb.x > canvas.width || eb.y < 0 || eb.y > canvas.height) {
-            enemyBullets.splice(i, 1);
-            continue;
-        }
-
-        let radius = eb.size || 6;
-        if (!player.isInvulnerable && eb.x > player.x && eb.x < player.x + player.width &&
-            eb.y > player.y && eb.y < player.y + player.height) {
-            player.isInvulnerable = true;
-            player.invulnerableTimer = 60;
-            if (shieldSystem.current > 0) shieldSystem.current--;
-            else player.lives--;
-            playSound("player_hit");
-            spawnParticles(player.x + player.width / 2, player.y + player.height / 2, "#ff3333", 8);
-            enemyBullets.splice(i, 1);
-        }
-    }
-
-    // Granadas arrojadas por los enemigos
-    for (let i = grenades.length - 1; i >= 0; i--) {
-        let g = grenades[i];
-        g.vy += gravity * 0.6;
-        g.x += g.vx;
-        g.y += g.vy;
-
-        if (g.y + g.radius >= floorY) {
-            g.y = floorY - g.radius;
-            g.vy = -g.vy * 0.4;
-            g.vx *= 0.7;
-        }
-
-        // Destrucción temporal de plataformas mecánicas si la granada cae sobre ellas
-        platforms.forEach(p => {
-            if (!p.destroyed && g.x > p.x && g.x < p.x + p.width &&
-                g.y + g.radius >= p.y && g.y - g.radius <= p.y + 10) {
-                p.destroyed = true;
-                p.repairTimer = 360; 
-                g.timer = 0; 
-            }
-        });
-
-        g.timer--;
-        if (g.timer <= 0) {
-            playSound("explosion");
-            spawnParticles(g.x, g.y, "#f59e0b", 14);
-            let d = Math.sqrt(Math.pow((player.x + player.width / 2) - g.x, 2) + Math.pow((player.y + player.height / 2) - g.y, 2));
-            if (d < 110 && !player.isInvulnerable) {
-                player.isInvulnerable = true;
-                player.invulnerableTimer = 60;
-                if (shieldSystem.current > 0) shieldSystem.current--;
-                else player.lives--;
-                playSound("player_hit");
-            }
-            grenades.splice(i, 1);
-        }
-    }
-
-    // Botiquines de vida médicos dropped
-    for (let i = medkits.length - 1; i >= 0; i--) {
-        let m = medkits[i];
-        if (player.x < m.x + m.width && player.x + player.width > m.x &&
-            player.y < m.y + m.height && player.y + player.height > m.y) {
-            if (player.lives < player.maxLives) {
-                player.lives++;
-                playSound("upgrade");
-                spawnFloatingText(m.x, m.y, "+1 VIDA", "#ff2266");
-                medkits.splice(i, 1);
-            }
-        }
-    }
-
-    // Partículas visuales
+    if (dashSystem.dashCooldown > 0) dashSystem.dashCooldown--;
     for (let i = particles.length - 1; i >= 0; i--) {
         let p = particles[i];
         p.x += p.vx;
         p.y += p.vy;
-        if (p.isChunk) p.vy += gravity * 0.4; 
+        if (p.isChunk) { p.vy += 0.3; } 
         p.alpha -= p.decay;
         if (p.alpha <= 0) particles.splice(i, 1);
     }
 
-    // Textos flotantes interactivos
+    // Actualización de Textos Flotantes
     for (let i = floatingTexts.length - 1; i >= 0; i--) {
         let ft = floatingTexts[i];
         ft.y += ft.vy;
         ft.life--;
         if (ft.life <= 0) floatingTexts.splice(i, 1);
     }
+
+    // Temporizadores de regeneración de plataformas
+    platforms.forEach(plat => {
+        if (plat.destroyed) {
+            plat.repairTimer--;
+            if (plat.repairTimer <= 0) {
+                plat.destroyed = false;
+                spawnParticles(plat.x + plat.width / 2, plat.y, "#ffaa44", 15);
+            }
+        }
+    });
+
+    // RECOMPENSA DE MONEDAS AL PASAR LA RONDA
+    if (enemiesLeftInRound <= 0 && !isRoundBreak) {
+        isRoundBreak = true;
+        roundBreakTimer = 10; 
+        keys = {}; 
+        enemies = [];
+        bullets = [];
+        enemyBullets = [];
+        grenades = [];
+        dragonSpawned = false;
+        dragon = null;
+        specialRoundType = "none";
+        playSound("round_complete");
+        
+        // Agregar +100 monedas por sobrevivir
+        coins += 100;
+        savePersistentData();
+        spawnFloatingText(player.x + 20, player.y - 40, "+100 MONEDAS", "#00ff66");
+    }
+
+    if (isRoundBreak) return;
+
+    if (keys["o"] && !player.isInvulnerable && shieldSystem.current < shieldSystem.max && !packAPunch.isUpgrading) {
+        shieldSystem.isCharging = true;
+        shieldSystem.chargeProgress++;
+        if (shieldSystem.chargeProgress >= shieldSystem.requiredFrames) {
+            shieldSystem.current = shieldSystem.max;
+            shieldSystem.isCharging = false;
+            shieldSystem.chargeProgress = 0;
+        }
+    } else {
+        shieldSystem.isCharging = false;
+        shieldSystem.chargeProgress = 0;
+    }
+
+    if (player.isReloading) {
+        player.reloadTimer--;
+        if (player.reloadTimer <= 0) { player.ammo = player.maxAmmo; player.isReloading = false; }
+    }
+
+    if (player.isInvulnerable) {
+        player.invulnerableTimer--;
+        if (player.invulnerableTimer <= 0) player.isInvulnerable = false;
+    }
+
+    // PACK-A-PUNCH
+    let playerCenterX = player.x + player.width / 2;
+    let playerCenterY = player.y + player.height / 2;
+    let nearPackAPunch = (playerCenterX > packAPunch.x - 30 && playerCenterX < packAPunch.x + packAPunch.width + 30 &&
+                          playerCenterY > packAPunch.y - 30 && playerCenterY < packAPunch.y + packAPunch.height + 30);
+
+    if (keys["u"] && nearPackAPunch && score >= packAPunch.cost) {
+        packAPunch.isUpgrading = true;
+        packAPunch.chargeProgress++;
+
+        if (packAPunch.chargeProgress >= packAPunch.requiredFrames) {
+            let currentWeaponData = weaponsCatalog[player.currentWeapon];
+            currentWeaponData.upgradeLevel++;
+            currentWeaponData.damage += 1;
+            currentWeaponData.name = currentWeaponData.name.split(" +")[0] + " +" + currentWeaponData.upgradeLevel;
+            
+            score -= packAPunch.cost;
+            scoreEl.innerText = score;
+
+            spawnFloatingText(packAPunch.x + 25, packAPunch.y - 40, "¡ARMA MEJORADA!", "#00ffcc");
+            playSound("upgrade");
+
+            packAPunch.isUpgrading = false;
+            packAPunch.chargeProgress = 0;
+        }
+    } else {
+        packAPunch.isUpgrading = false;
+        packAPunch.chargeProgress = 0;
+    }
+
+    if (!shieldSystem.isCharging && !packAPunch.isUpgrading) {
+        if (keys["a"] && player.x > 0) { player.x -= player.speed; }
+        if (keys["d"] && player.x < canvas.width - player.width) { player.x += player.speed; }
+        if (keys["w"] && player.isGrounded) { player.velocityY = -player.jumpForce; player.isGrounded = false; playSound("jump"); }
+    }
+
+    player.velocityY += gravity; player.y += player.velocityY;
+
+    if (player.y >= floorY - player.height) { player.y = floorY - player.height; player.velocityY = 0; player.isGrounded = true; }
+
+    platforms.forEach(plat => {
+        if (!plat.destroyed && player.velocityY >= 0 && player.x + player.width - 10 > plat.x && player.x + 10 < plat.x + plat.width && player.y + player.height <= plat.y + 8 && player.y + player.height + player.velocityY >= plat.y) {
+            player.y = plat.y - player.height; player.velocityY = 0; player.isGrounded = true;
+        }
+    });
+
+    bullets.forEach((bullet, bIndex) => {
+        bullet.x += bullet.speedX;
+        bullet.y += bullet.speedY;
+        
+        if (dragonSpawned && dragon) {
+            if (bullet.x > dragon.x && bullet.x < dragon.x + dragon.width &&
+                bullet.y > dragon.y && bullet.y < dragon.y + dragon.height) {
+                
+                dragon.lives -= bullet.damage;
+                spawnParticles(bullet.x, bullet.y, "#ff4500", 4);
+                spawnFloatingText(bullet.x, bullet.y - 15, `-${bullet.damage}`, "#ff6600");
+                bullets.splice(bIndex, 1);
+                
+                if (dragon.lives <= 0) {
+                    score += 1000; 
+                    scoreEl.innerText = score;
+                    spawnFloatingText(dragon.x + 100, dragon.y + 100, "+1000 PUNTOS", "#ffff00");
+                    spawnParticles(dragon.x + 160, dragon.y + 190, "#7b00b8", 80, true);
+                    dragon = null;
+                    dragonSpawned = false;
+                }
+                return; 
+            }
+        }
+
+        if (bullet.x > canvas.width || bullet.x < 0 || bullet.y > canvas.height || bullet.y < 0) {
+            bullets.splice(bIndex, 1);
+        }
+    });
+
+    enemyBullets.forEach((eb, ebIndex) => {
+        eb.x += eb.speedX;
+        eb.y += eb.speedY;
+
+        if (eb.isDragonFire) { 
+            platforms.forEach(plat => {
+                if (!plat.destroyed && eb.x > plat.x && eb.x < plat.x + plat.width && eb.y > plat.y - 15 && eb.y < plat.y + plat.height + 15) {
+                    plat.destroyed = true;
+                    plat.repairTimer = 3600; 
+                    spawnParticles(plat.x + plat.width / 2, plat.y, "#ff4500", 30, true);
+                    spawnFloatingText(plat.x + plat.width / 2, plat.y - 20, "¡PLATAFORMA ROTA!", "#ff3333");
+                }
+            });
+        }
+
+        if (checkCollision(player, eb)) {
+            damagePlayer(eb.damage);
+            enemyBullets.splice(ebIndex, 1);
+            return;
+        }
+        if (eb.x < -50 || eb.x > canvas.width + 50 || eb.y > canvas.height) {
+            enemyBullets.splice(ebIndex, 1);
+        }
+    });
+
+    grenades.forEach((g, gIndex) => {
+        g.timer--;
+        if (g.timer <= 0) {
+            let distance = Math.sqrt(Math.pow((player.x + player.width/2) - g.x, 2) + Math.pow((player.y + player.height/2) - g.y, 2));
+            if (distance < g.radius) { damagePlayer(1); }
+            spawnParticles(g.x, g.y, "#ff4500", 25, true);
+            grenades.splice(gIndex, 1); 
+        }
+    });
+
+    enemies.forEach((enemy, eIndex) => {
+        if (enemy.isFlying) {
+            let diffX = (player.x + player.width/2) - (enemy.x + enemy.width/2);
+            let diffY = (player.y + player.height/2) - (enemy.y + enemy.height/2);
+            let dist = Math.sqrt(diffX*diffX + diffY*diffY);
+            if(dist > 0) {
+                enemy.x += (diffX / dist) * enemy.speed;
+                enemy.y += (diffY / dist) * enemy.speed;
+            }
+            enemy.facing = diffX >= 0 ? 1 : -1;
+        } else if (enemy.isKamikaze) {
+            // Kamikaze: corre directo hacia el jugador sin saltar
+            if (enemy.x < player.x) { enemy.x += enemy.speed; enemy.facing = 1; } 
+            else { enemy.x -= enemy.speed; enemy.facing = -1; }
+            enemy.velocityY += gravity; enemy.y += enemy.velocityY;
+            if (enemy.y >= floorY - enemy.height) { enemy.y = floorY - enemy.height; enemy.velocityY = 0; enemy.isGrounded = true; }
+            platforms.forEach(plat => {
+                if (!plat.destroyed && enemy.velocityY >= 0 && enemy.x + enemy.width > plat.x && enemy.x < plat.x + plat.width && enemy.y + enemy.height <= plat.y + 8 && enemy.y + enemy.height + enemy.velocityY >= plat.y) {
+                    enemy.y = plat.y - enemy.height; enemy.velocityY = 0; enemy.isGrounded = true;
+                }
+            });
+            enemy.blinkTimer = (enemy.blinkTimer || 0) + 1;
+            // Explota al contacto con el jugador
+            if (checkCollision(player, enemy)) {
+                let eIdx = enemies.indexOf(enemy);
+                if (eIdx !== -1) enemies.splice(eIdx, 1);
+                enemiesLeftInRound--;
+                kamikazeExplode(enemy, false);
+                registerKill();
+            }
+        } else {
+            if (enemy.x < player.x) { enemy.x += enemy.speed; enemy.facing = 1; } 
+            else { enemy.x -= enemy.speed; enemy.facing = -1; }
+
+            if (!enemy.isBoss) {
+                enemy.velocityY += gravity; enemy.y += enemy.velocityY;
+                if (enemy.y >= floorY - enemy.height) { enemy.y = floorY - enemy.height; enemy.velocityY = 0; enemy.isGrounded = true; }
+                platforms.forEach(plat => {
+                    if (!plat.destroyed && enemy.velocityY >= 0 && enemy.x + enemy.width > plat.x && enemy.x < plat.x + plat.width && enemy.y + enemy.height <= plat.y + 8 && enemy.y + enemy.height + enemy.velocityY >= plat.y) {
+                        enemy.y = plat.y - enemy.height; enemy.velocityY = 0; enemy.isGrounded = true;
+                    }
+                });
+                if (player.y < enemy.y && enemy.isGrounded && Math.random() < 0.02) { enemy.velocityY = -12; enemy.isGrounded = false; }
+
+                let now = Date.now();
+                if (now - enemy.lastGrenade > 5000) {
+                    enemy.lastGrenade = now;
+                    grenades.push({
+                        x: player.x + player.width / 2,
+                        y: player.y + player.height / 2,
+                        radius: 70,
+                        timer: 120 
+                    });
+                }
+            } else {
+                if (enemy.y < floorY - enemy.height) enemy.y += 2;
+                let now = Date.now();
+                if (now - enemy.lastShot > 5000) {
+                    enemy.lastShot = now;
+                    let distToPlayer = Math.abs(enemy.x - player.x);
+                    if (distToPlayer < 350) { 
+                        enemyBullets.push({
+                            x: enemy.x + (enemy.facing === 1 ? enemy.width : 0), y: enemy.y + 60,
+                            speedX: enemy.facing * 8, speedY: (Math.random() - 0.5) * 4,
+                            width: 14, height: 14, color: "#ffaa00", damage: 2, isDragonFire: false 
+                        });
+                    }
+                }
+            }
+        }
+
+        if (!enemy.isKamikaze && checkCollision(player, enemy)) { damagePlayer(enemy.isBoss ? 2 : 1); }
+
+        bullets.forEach((bullet, bIndex) => {
+            if (checkCollision(bullet, enemy)) {
+                enemy.lives -= bullet.damage; 
+                
+                let particleColor = enemy.isShielded ? "#00bfff" : "#ff0033";
+                spawnParticles(bullet.x, bullet.y, particleColor, 6);
+                spawnFloatingText(enemy.x + enemy.width / 2, enemy.y, `-${bullet.damage}`, "#ff3333");
+                playSound("hit_enemy");
+
+                bullets.splice(bIndex, 1);
+
+                if (enemy.lives <= 0) {
+                    let ptsGained = enemy.isBoss ? 150 : (enemy.isShielded ? 100 : 50);
+                    score += ptsGained; 
+                    scoreEl.innerText = score;
+
+                    spawnParticles(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, particleColor, 25, true);
+                    spawnFloatingText(enemy.x + enemy.width / 2, enemy.y - 20, `+${ptsGained}`, "#00ff66");
+                    playSound("kill");
+
+                    if (enemy.isKamikaze) {
+                        kamikazeExplode(enemy, true);
+                    }
+
+                    enemies.splice(eIndex, 1);
+                    enemiesLeftInRound--;
+                    registerKill();
+                }
+            }
+        });
+    });
+
+    if (dragonSpawned && dragon) {
+        let now = Date.now();
+        if (now - dragon.lastShot > 3000) {
+            dragon.lastShot = now;
+            let angle = Math.atan2((player.y + 40) - (dragon.y + 120), player.x - (dragon.x + 30));
+            enemyBullets.push({
+                x: dragon.x + 30, y: dragon.y + 120,
+                speedX: Math.cos(angle) * 8, speedY: Math.sin(angle) * 8,
+                width: 35, height: 35, color: "#ff4500", damage: 1, isDragonFire: true 
+            });
+        }
+    }
+
+    medkits.forEach((m, mIndex) => { if (checkCollision(player, m)) { if (player.lives < player.maxLives) player.lives++; medkits.splice(mIndex, 1); } });
+}
+
+function checkCollision(rect1, rect2) {
+    return rect1.x < rect2.x + rect2.width && rect1.x + rect1.width > rect2.x && rect1.y < rect2.y + rect2.height && rect1.y + rect1.height > rect2.y;
+}
+
+// RENDERIZADO DEL SOMBRERO COSMÉTICO
+function drawHat(cx, y, scale, facingRight) {
+    if (equippedHat === "none") return;
+
+    ctx.save();
+    // Ajustar ligeramente el sombrero según la escala del stickman
+    let hatY = y + (5 * scale);
+    let hatX = cx;
+
+    if (equippedHat === "cowboy") {
+        ctx.fillStyle = "#8b4513"; // Marrón
+        ctx.strokeStyle = "#5c2e0b";
+        ctx.lineWidth = 2;
+        // Ala del sombrero
+        ctx.beginPath();
+        ctx.ellipse(hatX, hatY + 2, 16 * scale, 4 * scale, 0, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+        // Copa del sombrero
+        ctx.beginPath();
+        ctx.moveTo(hatX - 9 * scale, hatY + 2);
+        ctx.quadraticCurveTo(hatX - 9 * scale, hatY - 12 * scale, hatX - 6 * scale, hatY - 14 * scale);
+        ctx.lineTo(hatX + 6 * scale, hatY - 14 * scale);
+        ctx.quadraticCurveTo(hatX + 9 * scale, hatY - 12 * scale, hatX + 9 * scale, hatY + 2);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        // Detalle cinta negra
+        ctx.fillStyle = "#111111";
+        ctx.fillRect(hatX - 9 * scale, hatY - 2, 18 * scale, 3 * scale);
+    } 
+    else if (equippedHat === "top") {
+        ctx.fillStyle = "#1a1a1a"; // Negro elegante
+        ctx.strokeStyle = "#000000";
+        ctx.lineWidth = 2;
+        // Ala del sombrero
+        ctx.fillRect(hatX - 15 * scale, hatY, 30 * scale, 3 * scale);
+        // Copa cilindrica
+        ctx.fillRect(hatX - 9 * scale, hatY - 18 * scale, 18 * scale, 18 * scale);
+        // Detalle cinta roja
+        ctx.fillStyle = "#ff0000";
+        ctx.fillRect(hatX - 9 * scale, hatY - 3, 18 * scale, 3 * scale);
+    }
+
+    ctx.restore();
+}
+
+function drawStickman(x, y, color, hasGun, facingRight, isInvulnerable, scale = 1, isFlying = false, isShielded = false) {
+    if (isInvulnerable && Math.floor(Date.now() / 100) % 2 === 0) return;
+    ctx.strokeStyle = color; ctx.lineWidth = 3 * scale; ctx.fillStyle = color;
+    const w = 40 * scale; const h = 80 * scale; const cx = x + w / 2;
+    
+    ctx.beginPath(); ctx.arc(cx, y + (15 * scale), 10 * scale, 0, Math.PI * 2); ctx.stroke();
+    
+    // DIBUJAR ACCESORIO (Sólo para el jugador principal 'hasGun')
+    if (hasGun) {
+        drawHat(cx, y, scale, facingRight);
+    }
+
+    ctx.beginPath(); ctx.moveTo(cx, y + (25 * scale)); ctx.lineTo(cx, y + (55 * scale)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, y + (55 * scale)); ctx.lineTo(cx - (10 * scale), y + h); ctx.moveTo(cx, y + (55 * scale)); ctx.lineTo(cx + (10 * scale), y + h); ctx.stroke();
+    
+    if (isFlying) {
+        let wingWave = Math.sin(Date.now() / 80) * 15;
+        ctx.fillStyle = "rgba(255, 69, 0, 0.6)";
+        ctx.beginPath(); ctx.moveTo(cx, y + 35); ctx.lineTo(cx - 35, y + 10 + wingWave); ctx.lineTo(cx - 15, y + 45); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(cx, y + 35); ctx.lineTo(cx + 35, y + 10 + wingWave); ctx.lineTo(cx + 15, y + 45); ctx.closePath(); ctx.fill();
+    }
+
+    if (isShielded) {
+        ctx.fillStyle = "rgba(0, 191, 255, 0.4)";
+        ctx.strokeStyle = "#00bfff";
+        ctx.lineWidth = 3;
+        ctx.save();
+        let shieldOffset = facingRight ? 20 : -15;
+        ctx.beginPath();
+        ctx.roundRect(cx + shieldOffset, y + 15, 12 * scale, 55 * scale, 5);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    if (hasGun) {
+        let angle = Math.atan2(mouseY - (y + 35), mouseX - cx);
+
+        if (player.currentWeapon === "duales") {
+            ctx.save(); ctx.translate(cx, y + 30); ctx.rotate(angle);
+            ctx.strokeStyle = color; ctx.lineWidth = 3 * scale;
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(18, -4); ctx.stroke(); 
+            ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(18, -4); ctx.lineTo(28, -4); ctx.stroke(); ctx.restore();
+
+            ctx.save(); ctx.translate(cx, y + 42); ctx.rotate(angle);
+            ctx.strokeStyle = color; ctx.lineWidth = 3 * scale;
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(18, 4); ctx.stroke();  
+            ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(18, 4); ctx.lineTo(28, 4); ctx.stroke(); ctx.restore();
+        } else {
+            ctx.save(); ctx.translate(cx, y + 35); ctx.rotate(angle);
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(20, 0); ctx.stroke();
+            ctx.strokeStyle = "#ffffff"; 
+            ctx.lineWidth = player.currentWeapon === "mp5" ? 5 : (player.currentWeapon === "rifle" ? 6 : 3);
+            ctx.beginPath(); ctx.moveTo(20, 0); ctx.lineTo((player.currentWeapon === "rifle" || player.currentWeapon === "galil") ? 38 : 30, 0); ctx.stroke(); ctx.restore();
+        }
+    } else {
+        if (color === "#ff3333" && scale === 1 && !isFlying) {
+            ctx.save(); ctx.translate(cx, y + 35);
+            let dir = facingRight ? 1 : -1;
+            let angleBase = dir === 1 ? -Math.PI / 5 : -Math.PI * 4 / 5;
+            let wobble = Math.sin(Date.now() / 100) * 0.1;
+            ctx.rotate(angleBase + wobble);
+            ctx.strokeStyle = color; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(15, 0); ctx.stroke();
+            ctx.strokeStyle = "#5a3825"; ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.moveTo(15, 0); ctx.lineTo(23, 0); ctx.stroke();
+            ctx.strokeStyle = "#e5b800"; ctx.lineWidth = 5;
+            ctx.beginPath(); ctx.moveTo(23, -4); ctx.lineTo(23, 4); ctx.stroke();
+            ctx.strokeStyle = "#cccccc"; ctx.lineWidth = 2.5;
+            ctx.beginPath(); ctx.moveTo(23, 0); ctx.lineTo(50, 0); ctx.stroke();
+            ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(25, -1); ctx.lineTo(49, -1); ctx.stroke(); ctx.restore();
+        } else {
+            let dir = facingRight ? 1 : -1;
+            ctx.beginPath(); ctx.moveTo(cx, y + 35); ctx.lineTo(cx + (15 * scale * dir), y + 45); ctx.stroke();
+        }
+    }
 }
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Render del menú principal persistente
-    if (gameState === "menu") {
-        ctx.fillStyle = "#111827";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#ffffff"; stars.forEach(s => ctx.fillRect(s.x, s.y, s.size, s.size));
 
-        stars.forEach(s => {
-            ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
-            ctx.fillRect(s.x, s.y, s.size, s.size);
-        });
-
-        ctx.fillStyle = "#00ffcc"; ctx.font = "bold 52px Arial"; ctx.textAlign = "center";
-        ctx.fillText("STICKMAN APOCALYPSE: CYBERPUNK", canvas.width / 2, canvas.height * 0.28);
-
-        ctx.fillStyle = "#9ca3af"; ctx.font = "20px Arial";
-        ctx.fillText("¡Consigue la puntuación más alta eliminando hordas y cibendragones!", canvas.width / 2, canvas.height * 0.36);
-        ctx.fillText(`Monedas Guardadas: ${coins} 🪙`, canvas.width / 2, canvas.height * 0.43);
-
-        ctx.fillStyle = "#10b981";
-        ctx.fillRect(playButton.x, playButton.y, playButton.width, playButton.height);
-        ctx.fillStyle = "#fff"; ctx.font = "bold 24px Arial";
-        ctx.fillText("JUGAR", playButton.x + playButton.width / 2, playButton.y + 38);
-
-        ctx.fillStyle = "#6366f1";
-        ctx.fillRect(menuShopButton.x, menuShopButton.y, menuShopButton.width, menuShopButton.height);
-        ctx.fillStyle = "#fff"; ctx.font = "bold 18px Arial";
-        ctx.fillText("TIENDA DE SOMBREROS", menuShopButton.x + menuShopButton.width / 2, menuShopButton.y + 32);
-
-        ctx.fillStyle = "#6b7280"; ctx.font = "15px Arial";
-        ctx.fillText("Controles: A/D para moverte — Espacio para saltar — Click para disparar — Shift para Dash", canvas.width / 2, canvas.height * 0.85);
-        ctx.fillText("Presiona 'T' en partida para abrir el catálogo de armas / Presiona 'M' para Trucos", canvas.width / 2, canvas.height * 0.9);
-        ctx.textAlign = "left";
-        return;
-    }
-
-    // Render del menú secundario de la Tienda de Sombreros
-    if (gameState === "menu_shop") {
-        ctx.fillStyle = "#0f172a"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "#6366f1"; ctx.font = "bold 42px Arial"; ctx.textAlign = "center";
-        ctx.fillText("TIENDA DE ACCESORIOS PERMANENTES", canvas.width / 2, canvas.height * 0.18);
-        ctx.fillStyle = "#fff"; ctx.font = "24px Arial";
-        ctx.fillText(`Tus Monedas: ${coins} 🪙`, canvas.width / 2, canvas.height * 0.26);
-
-        // Render del Botón Sombrero Vaquero
-        ctx.fillStyle = purchasedHats.cowboy ? (equippedHat === "cowboy" ? "#10b981" : "#4b5563") : "#b45309";
-        ctx.fillRect(buyCowboyButton.x, buyCowboyButton.y, buyCowboyButton.width, buyCowboyButton.height);
-        ctx.fillStyle = "#fff"; ctx.font = "18px Arial";
-        let txtCowboy = purchasedHats.cowboy ? (equippedHat === "cowboy" ? "EQUIPADO" : "EQUIPAR") : "COMPRAR VAQUERO (5,000 🪙)";
-        ctx.fillText(txtCowboy, buyCowboyButton.x + buyCowboyButton.width / 2, buyCowboyButton.y + 36);
-
-        // Render del Botón Sombrero de Copa
-        ctx.fillStyle = purchasedHats.top ? (equippedHat === "top" ? "#10b981" : "#4b5563") : "#1e40af";
-        ctx.fillRect(buyTopButton.x, buyTopButton.y, buyTopButton.width, buyTopButton.height);
-        let txtTop = purchasedHats.top ? (equippedHat === "top" ? "EQUIPADO" : "EQUIPAR") : "COMPRAR COPA (10,000 🪙)";
-        ctx.fillText(txtTop, buyTopButton.x + buyTopButton.width / 2, buyTopButton.y + 36);
-
-        // Volver al menú
-        ctx.fillStyle = "#ef4444";
-        ctx.fillRect(backToMenuButton.x, backToMenuButton.y, backToMenuButton.width, backToMenuButton.height);
-        ctx.fillStyle = "#fff";
-        ctx.fillText("VOLVER AL MENÚ", backToMenuButton.x + backToMenuButton.width / 2, backToMenuButton.y + 32);
-        ctx.textAlign = "left";
-        return;
-    }
-
-    // Render de Game Over
+    // PANTALLA: GAME OVER
     if (gameState === "gameover") {
-        ctx.fillStyle = "rgba(15, 23, 42, 0.98)";
+        // Fondo oscuro con viñeta roja
+        ctx.fillStyle = "rgba(8, 0, 0, 0.92)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "#ef4444"; ctx.font = "bold 56px Arial"; ctx.textAlign = "center";
-        ctx.fillText("¡HAS SIDO ELIMINADO!", canvas.width / 2, canvas.height * 0.32);
-        ctx.fillStyle = "#ffffff"; ctx.font = "26px Arial";
-        ctx.fillText(`Puntuación final: ${gameOverScore} pts`, canvas.width / 2, canvas.height * 0.44);
-        ctx.fillText(`Sobreviviste hasta la Ronda: ${gameOverRound}`, canvas.width / 2, canvas.height * 0.51);
 
-        gameOverButton.x = canvas.width / 2 - 110;
-        gameOverButton.y = canvas.height * 0.62;
-        ctx.fillStyle = "#10b981";
+        // Pulso rojo ambiental
+        let pulse = Math.sin(Date.now() / 600) * 0.06 + 0.08;
+        ctx.fillStyle = `rgba(180, 0, 0, ${pulse})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.textAlign = "center";
+
+        // Título GAME OVER con glow
+        ctx.save();
+        ctx.shadowColor = "#ff0000";
+        ctx.shadowBlur = 40;
+        ctx.fillStyle = "#ff2222";
+        ctx.font = "bold 90px Arial";
+        ctx.fillText("GAME OVER", canvas.width / 2, canvas.height * 0.25);
+        ctx.restore();
+
+        // Línea separadora
+        ctx.strokeStyle = "#ff333388";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(canvas.width / 2 - 280, canvas.height * 0.32);
+        ctx.lineTo(canvas.width / 2 + 280, canvas.height * 0.32);
+        ctx.stroke();
+
+        // Estadísticas
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 30px Arial";
+        ctx.fillText("Puntuación Final", canvas.width / 2, canvas.height * 0.40);
+
+        ctx.fillStyle = "#00ffcc";
+        ctx.font = "bold 56px Arial";
+        ctx.fillText(gameOverScore.toLocaleString() + " pts", canvas.width / 2, canvas.height * 0.50);
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 26px Arial";
+        ctx.fillText(`Ronda alcanzada:  ${gameOverRound}`, canvas.width / 2, canvas.height * 0.59);
+
+        // Mejor puntuación
+        let best = parseInt(localStorage.getItem("stickman_highscore")) || 0;
+        if (gameOverScore > best) {
+            best = gameOverScore;
+            localStorage.setItem("stickman_highscore", best);
+            ctx.fillStyle = "#ffd700";
+            ctx.font = "bold 22px Arial";
+            ctx.fillText("🏆 ¡NUEVO RÉCORD!", canvas.width / 2, canvas.height * 0.66);
+        } else {
+            ctx.fillStyle = "#888888";
+            ctx.font = "20px Arial";
+            ctx.fillText(`Récord: ${best.toLocaleString()} pts`, canvas.width / 2, canvas.height * 0.66);
+        }
+
+        // Botón REINICIAR
+        gameOverButton.x = canvas.width / 2 - gameOverButton.width / 2;
+        gameOverButton.y = canvas.height * 0.74;
+        let isHoverGO = mouseX >= gameOverButton.x && mouseX <= gameOverButton.x + gameOverButton.width &&
+                        mouseY >= gameOverButton.y && mouseY <= gameOverButton.y + gameOverButton.height;
+        ctx.fillStyle = isHoverGO ? "#ff4444" : "#2a0a0a";
         ctx.fillRect(gameOverButton.x, gameOverButton.y, gameOverButton.width, gameOverButton.height);
-        ctx.fillStyle = "#fff"; ctx.font = "bold 20px Arial";
-        ctx.fillText("REINTENTAR", gameOverButton.x + gameOverButton.width / 2, gameOverButton.y + 38);
+        ctx.strokeStyle = "#ff4444";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(gameOverButton.x, gameOverButton.y, gameOverButton.width, gameOverButton.height);
+        ctx.fillStyle = isHoverGO ? "#000000" : "#ff4444";
+        ctx.font = "bold 24px Arial";
+        ctx.fillText("🔄 REINTENTAR", canvas.width / 2, gameOverButton.y + 40);
+
         ctx.textAlign = "left";
         return;
     }
 
-    // Efecto visual de Ronda Especial de Oscuridad
-    if (specialRoundType === "darkness") {
-        ctx.fillStyle = "#020005";
+    // PANTALLA: MENÚ PRINCIPAL
+    if (gameState === "menu") {
+        ctx.fillStyle = "rgba(10, 10, 20, 0.8)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-    } else {
-        let gradientSky = ctx.createLinearGradient(0, 0, 0, floorY);
-        gradientSky.addColorStop(0, "#080711");
-        gradientSky.addColorStop(1, "#18132b");
-        ctx.fillStyle = gradientSky;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#00ffcc"; ctx.font = "bold 60px Arial";
+        ctx.shadowColor = "#00ffcc"; ctx.shadowBlur = 10; ctx.textAlign = "center";
+        ctx.fillText("STICKMAN SURVIVOR", canvas.width / 2, canvas.height * 0.28);
+        ctx.shadowBlur = 0; 
+
+        // Monedas permanentes arriba a la derecha
+        ctx.fillStyle = "#ffd700"; ctx.font = "bold 22px Arial";
+        ctx.fillText(`🪙 Monedas Totales: ${coins}`, canvas.width - 200, 45);
+
+        // Récord
+        let hs = parseInt(localStorage.getItem("stickman_highscore")) || 0;
+        if (hs > 0) {
+            ctx.fillStyle = "#aaaaaa"; ctx.font = "18px Arial";
+            ctx.fillText(`🏆 Récord: ${hs.toLocaleString()} pts`, canvas.width / 2, canvas.height * 0.38);
+        }
+
+        // Botón JUGAR
+        let isHoverPlay = mouseX >= playButton.x && mouseX <= playButton.x + playButton.width &&
+                          mouseY >= playButton.y && mouseY <= playButton.y + playButton.height;
+        ctx.fillStyle = isHoverPlay ? "#00ffcc" : "#3a3a4a";
+        ctx.fillRect(playButton.x, playButton.y, playButton.width, playButton.height);
+        ctx.strokeStyle = "#00ffcc"; ctx.strokeRect(playButton.x, playButton.y, playButton.width, playButton.height);
+        ctx.fillStyle = isHoverPlay ? "#000000" : "#ffffff"; ctx.font = "bold 24px Arial";
+        ctx.fillText("PLAY", canvas.width / 2, playButton.y + 38);
+
+        // Botón TIENDA DE SOMBREROS
+        let isHoverShop = mouseX >= menuShopButton.x && mouseX <= menuShopButton.x + menuShopButton.width &&
+                          mouseY >= menuShopButton.y && mouseY <= menuShopButton.y + menuShopButton.height;
+        ctx.fillStyle = isHoverShop ? "#ffaa00" : "#2a2a3a";
+        ctx.fillRect(menuShopButton.x, menuShopButton.y, menuShopButton.width, menuShopButton.height);
+        ctx.strokeStyle = "#ffaa00"; ctx.strokeRect(menuShopButton.x, menuShopButton.y, menuShopButton.width, menuShopButton.height);
+        ctx.fillStyle = isHoverShop ? "#000000" : "#ffffff"; ctx.font = "bold 18px Arial";
+        ctx.fillText("🤠 TIENDA DE SOMBREROS", canvas.width / 2, menuShopButton.y + 32);
+
+        ctx.fillStyle = "#888888"; ctx.font = "16px Arial";
+        ctx.fillText("Controles: A/D (Moverse) - W (Saltar) - Shift (Dash) - Espacio (Disparar) - T (Tienda) - M (Cheats) - U (Pack-A-Punch)", canvas.width / 2, canvas.height * 0.85);
+        ctx.textAlign = "left"; 
+        return; 
     }
 
-    stars.forEach(s => {
-        ctx.fillStyle = specialRoundType === "darkness" ? "rgba(147, 51, 234, 0.25)" : "rgba(255, 255, 255, 0.55)";
-        ctx.fillRect(s.x, s.y, s.size, s.size);
-    });
+    // PANTALLA: TIENDA DEL MENÚ PRINCIPAL
+    if (gameState === "menu_shop") {
+        ctx.fillStyle = "rgba(12, 10, 25, 0.95)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.fillStyle = "#ffaa00"; ctx.font = "bold 45px Arial"; ctx.textAlign = "center";
+        ctx.fillText("TIENDA DE ACCESORIOS PERMANENTES", canvas.width / 2, canvas.height * 0.15);
+        
+        ctx.fillStyle = "#ffd700"; ctx.font = "bold 26px Arial";
+        ctx.fillText(`Tus Monedas: 🪙 ${coins}`, canvas.width / 2, canvas.height * 0.23);
 
-    // Edificios del fondo tecnológico de la escena
+        // CARD SOMBRERO VAQUERO
+        let isHoverCowboy = mouseX >= buyCowboyButton.x && mouseX <= buyCowboyButton.x + buyCowboyButton.width &&
+                             mouseY >= buyCowboyButton.y && mouseY <= buyCowboyButton.y + buyCowboyButton.height;
+        ctx.fillStyle = isHoverCowboy ? "#3e2f25" : "#1e1a15";
+        ctx.fillRect(buyCowboyButton.x, buyCowboyButton.y, buyCowboyButton.width, buyCowboyButton.height);
+        ctx.strokeStyle = equippedHat === "cowboy" ? "#00ffcc" : "#8b4513";
+        ctx.lineWidth = equippedHat === "cowboy" ? 4 : 2;
+        ctx.strokeRect(buyCowboyButton.x, buyCowboyButton.y, buyCowboyButton.width, buyCowboyButton.height);
+        
+        ctx.fillStyle = "#ffffff"; ctx.font = "bold 16px Arial";
+        let textCowboy = "Comprar Vaquero (5,000 🪙)";
+        if (purchasedHats.cowboy) textCowboy = equippedHat === "cowboy" ? "DESEQUIPAR" : "EQUIPAR";
+        ctx.fillText(textCowboy, buyCowboyButton.x + buyCowboyButton.width / 2, buyCowboyButton.y + 35);
+        ctx.font = "14px Arial"; ctx.fillStyle = "#8b4513";
+        ctx.fillText("Sombrero de Vaquero", buyCowboyButton.x + buyCowboyButton.width / 2, buyCowboyButton.y - 15);
+
+        // CARD SOMBRERO DE COPA
+        let isHoverTop = mouseX >= buyTopButton.x && mouseX <= buyTopButton.x + buyTopButton.width &&
+                          mouseY >= buyTopButton.y && mouseY <= buyTopButton.y + buyTopButton.height;
+        ctx.fillStyle = isHoverTop ? "#2a2a2a" : "#151515";
+        ctx.fillRect(buyTopButton.x, buyTopButton.y, buyTopButton.width, buyTopButton.height);
+        ctx.strokeStyle = equippedHat === "top" ? "#00ffcc" : "#ffffff";
+        ctx.lineWidth = equippedHat === "top" ? 4 : 2;
+        ctx.strokeRect(buyTopButton.x, buyTopButton.y, buyTopButton.width, buyTopButton.height);
+        
+        ctx.fillStyle = "#ffffff"; ctx.font = "bold 16px Arial";
+        let textTop = "Comprar De Copa (10,000 🪙)";
+        if (purchasedHats.top) textTop = equippedHat === "top" ? "DESEQUIPAR" : "EQUIPAR";
+        ctx.fillText(textTop, buyTopButton.x + buyTopButton.width / 2, buyTopButton.y + 35);
+        ctx.font = "14px Arial"; ctx.fillStyle = "#aaaaaa";
+        ctx.fillText("Sombrero de Copa Fino", buyTopButton.x + buyTopButton.width / 2, buyTopButton.y - 15);
+
+        // BOTÓN VOLVER
+        let isHoverBack = mouseX >= backToMenuButton.x && mouseX <= backToMenuButton.x + backToMenuButton.width &&
+                           mouseY >= backToMenuButton.y && mouseY <= backToMenuButton.y + backToMenuButton.height;
+        ctx.fillStyle = isHoverBack ? "#ffffff" : "#3a3a4a";
+        ctx.fillRect(backToMenuButton.x, backToMenuButton.y, backToMenuButton.width, backToMenuButton.height);
+        ctx.fillStyle = isHoverBack ? "#000000" : "#ffffff"; ctx.font = "bold 16px Arial";
+        ctx.fillText("VOLVER AL MENÚ", canvas.width / 2, backToMenuButton.y + 32);
+
+        ctx.textAlign = "left";
+        return;
+    }
+
+    // ==========================================
+    // DIBUJADO DE ESCENARIO IN-GAME
+    // ==========================================
     buildings.forEach(bld => {
-        ctx.fillStyle = specialRoundType === "darkness" ? "#110b1a" : bld.color;
-        ctx.fillRect(bld.x, floorY - bld.height, bld.width, bld.height);
-
+        ctx.fillStyle = bld.color; ctx.fillRect(bld.x, floorY - bld.height, bld.width, bld.height);
+        ctx.fillStyle = "#1e1513"; ctx.fillRect(bld.x, floorY - bld.height, bld.width, 6);
         bld.windows.forEach(w => {
-            ctx.fillStyle = w.lit ? (specialRoundType === "darkness" ? "#a855f7" : "#ffd700") : "#1a1210";
-            ctx.fillRect(bld.x + w.relX, (floorY - bld.height) + w.relY, 16, 22);
+            ctx.fillStyle = w.lit ? "#ffdd66" : "#1a1211"; 
+            ctx.fillRect(bld.x + w.relX, (floorY - bld.height) + w.relY, 16, 16);
         });
     });
 
-    backgroundDecorations.forEach(dec => {
-        ctx.fillStyle = dec.color;
-        ctx.fillRect(dec.x, dec.y, dec.width, dec.height);
+    ctx.fillStyle = "#111116"; ctx.beginPath(); ctx.moveTo(0, floorY); ctx.lineTo(canvas.width*0.25, floorY-120); ctx.lineTo(canvas.width*0.6, floorY); ctx.lineTo(canvas.width*0.85, floorY-180); ctx.lineTo(canvas.width, floorY); ctx.fill();
+
+    backgroundDecorations.forEach(barrel => {
+        ctx.fillStyle = barrel.color; ctx.fillRect(barrel.x, barrel.y, barrel.width, barrel.height);
+        ctx.strokeStyle = "#111"; ctx.lineWidth = 2; ctx.strokeRect(barrel.x, barrel.y, barrel.width, barrel.height);
+        ctx.beginPath();
+        ctx.moveTo(barrel.x, barrel.y + barrel.height / 3); ctx.lineTo(barrel.x + barrel.width, barrel.y + barrel.height / 3);
+        ctx.moveTo(barrel.x, barrel.y + (barrel.height / 3) * 2); ctx.lineTo(barrel.x + barrel.width, barrel.y + (barrel.height / 3) * 2); ctx.stroke();
+        if (barrel.type === "toxic") { ctx.fillStyle = "#7fff00"; ctx.fillRect(barrel.x + 5, barrel.y + 12, barrel.width - 10, 8); }
     });
 
-    // Estructuras de plataformas
-    platforms.forEach(p => {
-        if (p.destroyed) return;
-        ctx.fillStyle = "#475569";
-        ctx.fillRect(p.x, p.y, p.width, p.height);
-        ctx.fillStyle = "#334155";
-        ctx.fillRect(p.x, p.y + p.height - 4, p.width, 4);
+    ctx.fillStyle = "#1e1e24"; ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
+    ctx.fillStyle = "#00ffcc"; ctx.fillRect(0, floorY, canvas.width, 4);
+
+    platforms.forEach(plat => { 
+        if (!plat.destroyed) {
+            ctx.fillStyle = "#4e413d"; ctx.fillRect(plat.x, plat.y, plat.width, plat.height); 
+            ctx.fillStyle = "#ffaa44"; ctx.fillRect(plat.x, plat.y, plat.width, 2); 
+        } else {
+            ctx.fillStyle = "rgba(255, 69, 0, 0.15)";
+            ctx.fillRect(plat.x, plat.y, plat.width, plat.height);
+        }
     });
 
-    // Renderizado de la máquina Pack-A-Punch
-    ctx.fillStyle = "#1e3a8a";
-    ctx.fillRect(packAPunch.x, packAPunch.y, packAPunch.width, packAPunch.height);
-    ctx.fillStyle = "#3b82f6";
-    ctx.fillRect(packAPunch.x + 5, packAPunch.y + 5, packAPunch.width - 10, 10);
-    ctx.fillStyle = "#ffffff"; ctx.font = "11px Arial";
-    ctx.fillText("P-A-P", packAPunch.x + 9, packAPunch.y + 35);
+    // PACK-A-PUNCH
+    ctx.fillStyle = "#4b0082"; ctx.fillRect(packAPunch.x, packAPunch.y, packAPunch.width, packAPunch.height);
+    ctx.strokeStyle = "#da70d6"; ctx.lineWidth = 3; ctx.strokeRect(packAPunch.x, packAPunch.y, packAPunch.width, packAPunch.height);
+    ctx.fillStyle = Math.floor(Date.now() / 250) % 2 === 0 ? "#00ffff" : "#ff00ff";
+    ctx.fillRect(packAPunch.x + 8, packAPunch.y + 10, 8, 8); ctx.fillRect(packAPunch.x + packAPunch.width - 16, packAPunch.y + 10, 8, 8);
+
+    let playerCenterX = player.x + player.width / 2;
+    let playerCenterY = player.y + player.height / 2;
+    let nearPackAPunch = (playerCenterX > packAPunch.x - 30 && playerCenterX < packAPunch.x + packAPunch.width + 30 &&
+                          playerCenterY > packAPunch.y - 30 && playerCenterY < packAPunch.y + packAPunch.height + 30);
+    if (nearPackAPunch && !packAPunch.isUpgrading) {
+        ctx.fillStyle = "#ffffff"; ctx.font = "bold 13px Arial"; ctx.textAlign = "center";
+        ctx.fillText(score >= packAPunch.cost ? "[Mantén U] Mejorar Arma (10k pts)" : "Pack-A-Punch (10,000 pts)", packAPunch.x + packAPunch.width/2, packAPunch.y - 12);
+        ctx.textAlign = "left";
+    }
 
     if (packAPunch.isUpgrading) {
-        ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(packAPunch.x - 25, packAPunch.y - 25, 100, 15);
-        ctx.fillStyle = "#00ffff"; ctx.fillRect(packAPunch.x - 23, packAPunch.y - 23, (packAPunch.chargeProgress / packAPunch.requiredFrames) * 96, 11);
+        ctx.fillStyle = "#ffff00"; ctx.font = "bold 16px Arial"; ctx.textAlign = "center";
+        ctx.fillText("MEJORANDO...", packAPunch.x + packAPunch.width / 2, packAPunch.y - 25);
+        let progressPct = packAPunch.chargeProgress / packAPunch.requiredFrames;
+        ctx.fillStyle = "#222"; ctx.fillRect(packAPunch.x - 25, packAPunch.y - 15, 100, 8);
+        ctx.fillStyle = "#00ffcc"; ctx.fillRect(packAPunch.x - 25, packAPunch.y - 15, 100 * progressPct, 8);
+        ctx.textAlign = "left";
     }
 
-    // Botiquines médicos caídos
-    medkits.forEach(m => {
-        ctx.fillStyle = "#ffffff"; ctx.fillRect(m.x, m.y, m.width, m.height);
-        ctx.fillStyle = "#ff2266";
-        ctx.fillRect(m.x + m.width / 2 - 3, m.y + 4, 6, m.height - 8);
-        ctx.fillRect(m.x + 4, m.y + m.height / 2 - 3, m.width - 8, 6);
-    });
-
-    // Dibujado del Stickman Jugador
-    if (player.lives > 0) {
-        if (!player.isInvulnerable || Math.floor(Date.now() / 100) % 2 === 0) {
-            let px = player.x + player.width / 2;
-            let py = player.y + 25;
-
-            ctx.strokeStyle = player.color;
-            ctx.lineWidth = 4;
-            ctx.beginPath();
-
-            // Cabeza del stickman
-            ctx.arc(px, py, 12, 0, Math.PI * 2);
-            // Cuerpo central
-            ctx.moveTo(px, py + 12); ctx.lineTo(px, py + 42);
-            // Extremidades — Brazos dinámicos que apuntan al mouse
-            let weaponAngle = Math.atan2(mouseY - (py + 20), mouseX - px);
-            ctx.moveTo(px, py + 20); ctx.lineTo(px + Math.cos(weaponAngle) * 22, py + 20 + Math.sin(weaponAngle) * 22);
-            // Extremidades — Piernas estables
-            ctx.moveTo(px, py + 42); ctx.lineTo(player.x + 5, player.y + player.height);
-            ctx.moveTo(px, py + 42); ctx.lineTo(player.x + player.width - 5, player.y + player.height);
-            ctx.stroke();
-
-            // Renderizado de sombreros persistentes equipados
-            if (equippedHat === "cowboy") {
-                ctx.fillStyle = "#b45309";
-                ctx.fillRect(px - 22, py - 15, 44, 5); 
-                ctx.fillRect(px - 11, py - 26, 22, 12); 
-            } else if (equippedHat === "top") {
-                ctx.fillStyle = "#000000"; ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1;
-                ctx.fillRect(px - 18, py - 14, 36, 4); 
-                ctx.fillRect(px - 11, py - 36, 22, 22); 
-                ctx.strokeRect(px - 11, py - 36, 22, 22);
-            }
-
-            // Visualización del arma equipada actual
-            ctx.save();
-            ctx.translate(px, py + 20);
-            ctx.rotate(weaponAngle);
-            ctx.fillStyle = weaponsCatalog[player.currentWeapon].color;
-            ctx.fillRect(10, -3, player.currentWeapon === "rifle" ? 24 : 14, 6);
-            if (weaponsCatalog[player.currentWeapon].upgradeLevel > 0) {
-                ctx.fillStyle = "#00ffff"; ctx.fillRect(14, -5, 4, 2);
-            }
-            ctx.restore();
-        }
-    }
-
-    // Proyectiles del jugador
-    bullets.forEach(b => {
-        ctx.fillStyle = b.color;
-        ctx.fillRect(b.x, b.y, b.width, b.height);
-    });
-
-    // Dibujado de enemigos comunes de la oleada
-    enemies.forEach(e => {
-        ctx.fillStyle = e.color;
-        ctx.fillRect(e.x, e.y, e.width, e.height);
-
-        // Barra de vida pequeña sobre los enemigos
-        ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fillRect(e.x - 5, e.y - 12, e.width + 10, 5);
-        ctx.fillStyle = "#ff2255"; ctx.fillRect(e.x - 5, e.y - 12, ((e.lives / e.maxLives) * (e.width + 10)), 5);
-
-        if (e.isShielded) {
-            ctx.fillStyle = "#38bdf8";
-            if (player.x < e.x) ctx.fillRect(e.x - 6, e.y - 4, 8, e.height + 8);
-            else ctx.fillRect(e.x + e.width - 2, e.y - 4, 8, e.height + 8);
-        }
-
-        // Diseño visual interno básico del stickman enemigo
-        ctx.strokeStyle = "#000"; ctx.lineWidth = 2;
-        let ex = e.x + e.width / 2;
-        let ey = e.y + 20;
-        ctx.beginPath();
-        ctx.arc(ex, ey, 8, 0, Math.PI * 2);
-        ctx.moveTo(ex, ey + 8); ctx.lineTo(ex, ey + 32);
-        ctx.stroke();
-    });
-
-    // ==========================================
-    // RENDERIZADO VISUAL DE LOS 3 TIPOS DE JEFES
-    // ==========================================
-    if (dragonSpawned && dragon) {
-        ctx.fillStyle = dragon.color;
-        ctx.fillRect(dragon.x, dragon.y, dragon.width, dragon.height);
-
-        ctx.fillStyle = dragon.secondaryColor;
-        
-        if (dragon.type === 1) {
-            // Diseño Dragón Terrestre
-            ctx.fillRect(dragon.x + (dragon.vx > 0 ? dragon.width - 20 : 5), dragon.y + 15, 15, 10); 
-            ctx.fillStyle = "#150a25"; 
-            ctx.fillRect(dragon.x - 15, dragon.y + 20, 25, 45); 
-            ctx.fillRect(dragon.x + dragon.width - 10, dragon.y + 20, 25, 45); 
-            
-        } else if (dragon.type === 2) {
-            // Diseño Dragón Volador
-            ctx.fillRect(dragon.x + (dragon.vx > 0 ? dragon.width - 15 : 0), dragon.y + 10, 15, 12); 
-            let wingOffset = Math.sin(dragon.sinAnim * 2) * 20;
-            ctx.fillStyle = "#2e7d63";
-            ctx.fillRect(dragon.x + 25, dragon.y - 15 + wingOffset, 20, 30);
-            ctx.fillRect(dragon.x + 65, dragon.y - 15 + wingOffset, 20, 30);
-            
-        } else if (dragon.type === 3) {
-            // Diseño Cabeza Gigante Ancestral
-            ctx.fillRect(dragon.x + dragon.width - 35, dragon.y + 40, 25, 25); 
-            ctx.fillRect(dragon.x + dragon.width - 35, dragon.y + 120, 30, 15); 
-            ctx.fillStyle = "#2d3748";
-            ctx.fillRect(dragon.x, dragon.y + 80, dragon.width - 20, 10);
-        }
-
-        // Interfaz de salud del Jefe superior fija en pantalla
-        ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
-        ctx.fillRect(canvas.width / 2 - 250, 25, 500, 26);
-        ctx.fillStyle = "#ff2255";
-        let hpBarWidth = (dragon.health / dragon.maxHealth) * 496;
-        ctx.fillRect(canvas.width / 2 - 248, 27, hpBarWidth, 22);
-
-        ctx.fillStyle = "#fff"; ctx.font = "bold 14px Arial"; ctx.textAlign = "center";
-        ctx.fillText(dragon.name, canvas.width / 2, 42);
-        ctx.textAlign = "left"; 
-    }
-
-    // Proyectiles enemigos y granadas
-    enemyBullets.forEach(eb => {
-        ctx.fillStyle = eb.color || "#ff3333";
-        ctx.beginPath();
-        ctx.arc(eb.x, eb.y, eb.size || 6, 0, Math.PI * 2);
-        ctx.fill();
-    });
+    medkits.forEach(m => { ctx.fillStyle = "#ffffff"; ctx.fillRect(m.x, m.y, m.width, m.height); ctx.fillStyle = "#ff0000"; ctx.fillRect(m.x + m.width/2 - 2, m.y + 4, 4, m.height - 8); ctx.fillRect(m.x + 4, m.y + m.height/2 - 2, m.width - 8, 4); });
 
     grenades.forEach(g => {
-        ctx.fillStyle = "#34d399"; ctx.beginPath();
-        ctx.arc(g.x, g.y, g.radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "#f59e0b"; ctx.fillRect(g.x - 2, g.y - 11, 4, 5); 
+        ctx.fillStyle = "rgba(255, 0, 0, 0.35)"; ctx.beginPath(); ctx.arc(g.x, g.y, g.radius, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = "#ff0000"; ctx.lineWidth = 2; ctx.stroke();
     });
 
-    // Partículas y trozos de stickman
+    drawStickman(player.x, player.y, player.color, true, player.facing === 1, player.isInvulnerable, 1, false);
+    
+    if (shieldSystem.isCharging) {
+        let pct = shieldSystem.chargeProgress / shieldSystem.requiredFrames;
+        ctx.fillStyle = "#222"; ctx.fillRect(player.x - 5, player.y - 20, 50, 6);
+        ctx.fillStyle = "#00bfff"; ctx.fillRect(player.x - 5, player.y - 20, 50 * pct, 6);
+    }
+
+    enemies.forEach(enemy => {
+        const scale = enemy.isBoss ? 2 : 1;
+        // Kamikaze: parpadea entre rojo brillante y blanco
+        let drawColor = enemy.color;
+        if (enemy.isKamikaze) {
+            let blink = Math.floor(Date.now() / 120) % 2 === 0;
+            drawColor = blink ? "#ff3333" : "#ffffff";
+            // Aura de explosión
+            ctx.save();
+            ctx.globalAlpha = 0.25 + Math.sin(Date.now() / 80) * 0.15;
+            ctx.fillStyle = "#ff4400";
+            ctx.beginPath();
+            ctx.arc(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, 38, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+        drawStickman(enemy.x, enemy.y, drawColor, false, enemy.facing === 1, false, scale, enemy.isFlying, enemy.isShielded);
+        
+        if (enemy.isBoss) {
+            ctx.fillStyle = "#333"; ctx.fillRect(enemy.x, enemy.y - 15, 80, 8);
+            ctx.fillStyle = "#ff0000"; ctx.fillRect(enemy.x, enemy.y - 15, (enemy.lives / enemy.maxLives) * 80, 8);
+        } else if (enemy.isShielded) {
+            ctx.fillStyle = "#222"; ctx.fillRect(enemy.x, enemy.y - 15, 45, 6);
+            ctx.fillStyle = "#00bfff"; ctx.fillRect(enemy.x, enemy.y - 15, (enemy.lives / enemy.maxLives) * 45, 6);
+        }
+    });
+
+    if (dragonSpawned && dragon) {
+        ctx.save();
+        let firePulse = Math.sin(Date.now() / 150) * 20;
+        ctx.fillStyle = "#4a0072"; ctx.beginPath(); ctx.moveTo(canvas.width, dragon.y + 150); ctx.lineTo(dragon.x + 180, dragon.y + 20); ctx.lineTo(dragon.x + 220, dragon.y + 180); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = "#5c008a"; ctx.beginPath(); ctx.moveTo(canvas.width, dragon.y + 100); ctx.quadraticCurveTo(dragon.x + 120, dragon.y + 150, dragon.x + 100, dragon.y + 250); ctx.lineTo(canvas.width, dragon.y + 380); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = "#7b00b8"; ctx.lineWidth = 3;
+        for(let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc(dragon.x + 160 + (i*30), dragon.y + 200 + (i*20), 25, 0, Math.PI); ctx.stroke(); }
+        ctx.fillStyle = "#6a009c"; ctx.beginPath(); ctx.moveTo(dragon.x + 140, dragon.y + 230); ctx.quadraticCurveTo(dragon.x + 60, dragon.y + 150, dragon.x + 40, dragon.y + 100); ctx.lineTo(dragon.x - 20, dragon.y + 80); ctx.lineTo(dragon.x + 30, dragon.y + 130); ctx.lineTo(dragon.x + 100, dragon.y + 160); ctx.quadraticCurveTo(dragon.x + 110, dragon.y + 200, dragon.x + 140, dragon.y + 250); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = "#4a0072"; ctx.beginPath(); ctx.moveTo(dragon.x + 30, dragon.y + 130); ctx.lineTo(dragon.x - 5, dragon.y + 115); ctx.lineTo(dragon.x + 40, dragon.y + 150); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = "#9900ff"; ctx.beginPath(); ctx.moveTo(dragon.x + 40, dragon.y + 90); ctx.lineTo(dragon.x + 10, dragon.y + 40); ctx.lineTo(dragon.x + 60, dragon.y + 95); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = "#ffff00"; ctx.shadowColor = "#ffea00"; ctx.shadowBlur = 15; ctx.beginPath(); ctx.arc(dragon.x + 25, dragon.y + 95, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#000000"; ctx.beginPath(); ctx.arc(dragon.x + 23, dragon.y + 95, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.restore(); 
+
+        let timeToShot = Date.now() - dragon.lastShot;
+        if (timeToShot > 2000) {
+            ctx.fillStyle = "rgba(255, 69, 0, " + (0.3 + Math.abs(firePulse/40)) + ")"; ctx.beginPath(); ctx.arc(dragon.x + 25, dragon.y + 125, 25 + firePulse/2, 0, Math.PI*2); ctx.fill();
+        }
+        ctx.fillStyle = "#5c008a"; ctx.beginPath(); ctx.moveTo(dragon.x + 120, dragon.y + 270); ctx.lineTo(dragon.x + 50, dragon.y + 310); ctx.lineTo(dragon.x + 30, dragon.y + 305); ctx.moveTo(dragon.x + 50, dragon.y + 310); ctx.lineTo(dragon.x + 35, dragon.y + 320); ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 4; ctx.stroke();
+        ctx.fillStyle = "#222"; ctx.fillRect(canvas.width / 2 - 200, 30, 400, 20);
+        ctx.fillStyle = "#9900ff"; ctx.fillRect(canvas.width / 2 - 200, 30, (dragon.lives / dragon.maxLives) * 400, 20);
+        ctx.fillStyle = "#fff"; ctx.font = "bold 14px Arial"; ctx.fillText("DRAGÓN SUPREMO", canvas.width / 2 - 60, 45);
+    }
+
+    bullets.forEach(b => { ctx.fillStyle = b.color; ctx.fillRect(b.x, b.y, b.width, b.height); });
+    enemyBullets.forEach(eb => {
+        ctx.fillStyle = eb.color;
+        if(eb.width > 15) { 
+            ctx.save(); ctx.shadowColor = "#ff4500"; ctx.shadowBlur = 20;
+            ctx.beginPath(); ctx.arc(eb.x, eb.y, eb.width/2, 0, Math.PI*2); ctx.fill(); ctx.restore();
+        } else { ctx.fillRect(eb.x, eb.y, eb.width, eb.height); }
+    });
+
     particles.forEach(p => {
-        ctx.fillStyle = `rgba(${p.color === "#ff0000" || p.color === "#ff3333" ? "255,50,50" : "0,255,200"}, ${p.alpha})`;
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
         if (p.isChunk) {
-            ctx.fillStyle = p.color;
-            if (p.chunkType === 0) {
-                ctx.beginPath(); ctx.arc(p.x, p.y, p.size * 1.5, 0, Math.PI * 2); ctx.fill();
-            } else {
-                ctx.fillRect(p.x, p.y, p.size * 3, p.size);
+            ctx.strokeStyle = p.color; ctx.lineWidth = 2;
+            if (p.chunkType === 0) { 
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.stroke();
+            } else if (p.chunkType === 1) { 
+                ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + p.size*2, p.y + p.size); ctx.stroke();
+            } else { 
+                ctx.fillRect(p.x, p.y, p.size, p.size * 2);
             }
         } else {
             ctx.fillRect(p.x, p.y, p.size, p.size);
         }
+        ctx.restore();
     });
 
-    // Textos flotantes efímeros
     floatingTexts.forEach(ft => {
-        ctx.fillStyle = ft.color; ctx.font = "bold 16px Arial";
+        ctx.save();
+        ctx.globalAlpha = ft.alpha;
+        ctx.fillStyle = ft.color;
+        ctx.font = "bold 16px Courier New";
         ctx.fillText(ft.text, ft.x, ft.y);
+        ctx.restore();
     });
 
-    // Suelo cyberpunk estable
-    ctx.fillStyle = specialRoundType === "darkness" ? "#090512" : "#111827";
-    ctx.fillRect(0, floorY, canvas.width, 60);
-    ctx.fillStyle = specialRoundType === "darkness" ? "#581c87" : "#00ffcc";
-    ctx.fillRect(0, floorY, canvas.width, 4);
+    if (specialRoundType === "darkness") {
+        ctx.save();
+        ctx.fillStyle = "rgba(0, 0, 0, 0.96)";
+        ctx.globalCompositeOperation = "multiply";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // ==========================================
-    // INTERFAZ DE USUARIO (HUD SUPERIOR EN PANTALLA)
-    // ==========================================
-    ctx.fillStyle = "rgba(10, 10, 15, 0.85)";
-    ctx.fillRect(20, 20, 310, 120);
-    ctx.strokeStyle = "#00ffcc"; ctx.lineWidth = 1;
-    ctx.strokeRect(20, 20, 310, 120);
+        ctx.globalCompositeOperation = "destination-out";
+        let radGrad = ctx.createRadialGradient(mouseX, mouseY, 10, mouseX, mouseY, 150);
+        radGrad.addColorStop(0, "rgba(0,0,0,1)");
+        radGrad.addColorStop(0.7, "rgba(0,0,0,0.5)");
+        radGrad.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = radGrad;
+        ctx.beginPath(); ctx.arc(mouseX, mouseY, 150, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    }
 
-    // Vidas (Corazones rojos)
-    ctx.fillStyle = "#ff2266"; ctx.font = "18px Arial";
-    let heartUI = "❤️ ".repeat(Math.max(0, player.lives));
-    ctx.fillText(`VIDAS: ${heartUI}`, 35, 48);
+    for (let i = 0; i < player.maxLives; i++) {
+        let hx = canvas.width - 150 + (i * 35); let hy = 35;
+        ctx.fillStyle = i < player.lives ? "#ff2266" : "#441122"; 
+        ctx.beginPath(); ctx.arc(hx-7, hy, 7, Math.PI, 0, false); ctx.arc(hx+7, hy, 7, Math.PI, 0, false); ctx.lineTo(hx, hy+12); ctx.closePath(); ctx.fill();
+    }
 
-    // Escudos (Celdas azules)
-    ctx.fillStyle = "#38bdf8";
-    let shieldUI = "🛡️ ".repeat(Math.max(0, shieldSystem.current));
-    ctx.fillText(`ESCUDO: ${shieldUI}`, 35, 74);
+    for (let i = 0; i < shieldSystem.max; i++) {
+        let sx = canvas.width - 150 + (i * 35); let sy = 65; 
+        ctx.fillStyle = i < shieldSystem.current ? "#00bfff" : "#003355"; 
+        ctx.beginPath(); ctx.arc(sx-7, sy, 7, Math.PI, 0, false); ctx.arc(sx+7, sy, 7, Math.PI, 0, false); ctx.lineTo(sx, sy+12); ctx.closePath(); ctx.fill();
+    }
 
-    // Munición del cargador actual
-    ctx.fillStyle = player.isReloading ? "#ff9900" : "#ffff00";
-    let weaponNameTag = weaponsCatalog[player.currentWeapon].name;
-    let upgLvl = weaponsCatalog[player.currentWeapon].upgradeLevel;
-    if (upgLvl > 0) weaponNameTag += ` +${upgLvl}`;
-    ctx.fillText(`${weaponNameTag}: ${player.isReloading ? "RECARGANDO..." : player.ammo + " / " + player.maxAmmo}`, 35, 100);
+    ctx.fillStyle = "#ffffff"; ctx.font = "bold 24px Arial";
+    ctx.fillText(`RONDA: ${currentRound} ${specialRoundType === 'speed' ? '[VELOCIDAD]' : (specialRoundType === 'darkness' ? '[OSCURIDAD]' : '')}`, 25, 100);
+    ctx.font = "18px Arial"; ctx.fillStyle = "#ff3333";
+    ctx.fillText(`Enemigos restantes: ${enemiesLeftInRound > 0 ? enemiesLeftInRound : 0}`, 25, 135);
+    
+    // UI De monedas del jugador en partida
+    ctx.fillStyle = "#ffd700"; ctx.fillText(`🪙 Monedas: ${coins}`, 25, 165);
 
-    // Enfriamiento del Dash (Barra pequeña)
-    ctx.fillStyle = "#aaa"; ctx.font = "12px Arial";
-    ctx.fillText("DASH (Shift):", 35, 124);
-    ctx.fillStyle = "rgba(255,255,255,0.2)"; ctx.fillRect(125, 115, 80, 10);
-    ctx.fillStyle = dashSystem.dashCooldown <= 0 ? "#00ffcc" : "#ff5500";
-    let dashBarW = dashSystem.dashCooldown <= 0 ? 80 : ((dashSystem.dashCooldownMax - dashSystem.dashCooldown) / dashSystem.dashCooldownMax) * 80;
-    ctx.fillRect(125, 115, dashBarW, 10);
-
-    // Marcador de Ronda y Enemigos restantes arriba a la derecha
-    ctx.fillStyle = "rgba(10, 10, 15, 0.85)"; ctx.fillRect(canvas.width - 240, 20, 220, 90);
-    ctx.strokeRect(canvas.width - 240, 20, 220, 90);
-    ctx.fillStyle = specialRoundType !== "none" ? "#ff00ff" : "#ffffff"; ctx.font = "bold 20px Arial";
-    ctx.fillText(`RONDA: ${currentRound}`, canvas.width - 225, 48);
-    ctx.fillStyle = "#ff3333"; ctx.font = "16px Arial";
-    ctx.fillText(`Enemigos: ${enemiesLeftInRound}`, canvas.width - 225, 74);
-    ctx.fillStyle = "#f59e0b";
-    ctx.fillText(`Monedas: ${coins} 🪙`, canvas.width - 225, 96);
-
-    // Alerta visual de aproximación de Jefe
-    if (dragonWarning) {
-        ctx.fillStyle = "rgba(255, 0, 0, 0.15)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "#ff2222"; ctx.font = "bold 28px Arial"; ctx.textAlign = "center";
-        ctx.fillText("⚠️ ¡ALERTA DE CIBERJEFE ACERCÁNDOSE! ⚠️", canvas.width / 2, canvas.height * 0.15);
+    // ======= COMBO COUNTER =======
+    if (comboCount >= 10) {
+        let comboTier = Math.floor(comboCount / 10) * 10;
+        let comboAlpha = 0.6 + Math.sin(Date.now() / 80) * 0.4;
+        ctx.save();
+        ctx.globalAlpha = comboAlpha;
+        ctx.font = "bold 52px Arial";
+        ctx.fillStyle = comboCount >= 30 ? "#ff00ff" : (comboCount >= 20 ? "#ff8800" : "#ff4500");
+        ctx.shadowColor = ctx.fillStyle;
+        ctx.shadowBlur = 20;
+        ctx.textAlign = "right";
+        ctx.fillText(`x${comboCount} COMBO`, canvas.width - 20, 110);
+        // Barra de tiempo de combo
+        let comboBarWidth = 200;
+        let comboBarX = canvas.width - 220;
+        ctx.globalAlpha = 0.8;
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = "#333";
+        ctx.fillRect(comboBarX, 115, comboBarWidth, 8);
+        ctx.fillStyle = comboCount >= 30 ? "#ff00ff" : (comboCount >= 20 ? "#ff8800" : "#ff4500");
+        ctx.fillRect(comboBarX, 115, comboBarWidth * (comboTimer / COMBO_TIMEOUT), 8);
         ctx.textAlign = "left";
+        ctx.restore();
     }
 
-    // Despliegue del Multiplicador de Combo activo
-    if (comboCount >= 2) {
-        ctx.fillStyle = "#ff4500"; ctx.font = "bold 24px Arial";
-        ctx.fillText(`COMBO x${comboCount}`, 35, 175);
-        ctx.fillStyle = "rgba(255,69,0,0.2)"; ctx.fillRect(35, 185, 120, 6);
-        ctx.fillStyle = "#ff4500"; ctx.fillRect(35, 185, (comboTimer / COMBO_TIMEOUT) * 120, 6);
+    // ======= DASH COOLDOWN UI =======
+    if (dashSystem.dashCooldown > 0 || dashSystem.isDashing) {
+        ctx.save();
+        ctx.font = "bold 14px Arial";
+        ctx.textAlign = "left";
+        ctx.fillStyle = dashSystem.isDashing ? "#00ffcc" : "#aaaaaa";
+        ctx.fillText(dashSystem.isDashing ? "⚡ DASH ACTIVO" : "DASH (Shift)", 25, canvas.height - 40);
+        let dashBarW = 120;
+        ctx.fillStyle = "#333";
+        ctx.fillRect(25, canvas.height - 35, dashBarW, 6);
+        let pct = dashSystem.isDashing ? 1 : 1 - (dashSystem.dashCooldown / dashSystem.dashCooldownMax);
+        ctx.fillStyle = pct >= 1 ? "#00ffcc" : "#4488ff";
+        ctx.fillRect(25, canvas.height - 35, dashBarW * pct, 6);
+        ctx.restore();
     }
 
-    // Intermedio entre Rondas: Menú de selección de mejoras permanentes
     if (isRoundBreak) {
-        ctx.fillStyle = "rgba(10, 7, 20, 0.88)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "#00ffcc"; ctx.font = "bold 38px Arial"; ctx.textAlign = "center";
-        ctx.fillText(`¡RONDA ${currentRound} COMPLETADA!`, canvas.width / 2, canvas.height * 0.25);
-        ctx.fillStyle = "#ffffff"; ctx.font = "22px Arial";
-        ctx.fillText("Selecciona una Mejora Mutágena para la siguiente ronda:", canvas.width / 2, canvas.height * 0.33);
+        ctx.fillStyle = "rgba(12, 12, 28, 0.92)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#00ffcc"; ctx.font = "bold 42px Arial"; ctx.textAlign = "center";
+        ctx.fillText(`¡RONDA COMPLETADA!`, canvas.width / 2, canvas.height * 0.28);
+        ctx.fillStyle = "#ffffff"; ctx.font = "20px Arial";
+        ctx.fillText(`Siguiente ronda en: ${roundBreakTimer}s`, canvas.width / 2, canvas.height * 0.35);
+        ctx.fillStyle = "#aaaaaa"; ctx.fillText(`Haz clic para elegir una mejora permanente de inmediato:`, canvas.width / 2, canvas.height * 0.39);
 
-        // Renderizado interactivo de las 3 tarjetas de mejoras
-        let cardStartX = canvas.width / 2 - 460;
-        upgradeOptions.forEach((opt, idx) => {
-            opt.x = cardStartX + idx * 320;
-            opt.y = canvas.height * 0.45;
-
-            ctx.fillStyle = "rgba(30, 41, 59, 0.9)"; ctx.fillRect(opt.x, opt.y, opt.w, opt.h);
-            ctx.strokeStyle = opt.color; ctx.lineWidth = 2; ctx.strokeRect(opt.x, opt.y, opt.w, opt.h);
-
-            ctx.fillStyle = "#fff"; ctx.font = "bold 16px Arial";
-            ctx.fillText(opt.text, opt.x + opt.w / 2, opt.y + 42);
+        const buttonSpacing = 310;
+        const totalMenuWidth = (upgradeOptions.length * buttonSpacing) - 30;
+        const startX = (canvas.width / 2) - (totalMenuWidth / 2);
+        
+        upgradeOptions.forEach((opt, index) => {
+            opt.x = startX + (index * buttonSpacing); opt.y = canvas.height * 0.48;
+            let isHover = mouseX >= opt.x && mouseX <= opt.x + opt.w && mouseY >= opt.y && mouseY <= opt.y + opt.h;
+            ctx.fillStyle = isHover ? opt.color : "#222232"; ctx.fillRect(opt.x, opt.y, opt.w, opt.h);
+            ctx.strokeStyle = opt.color; ctx.lineWidth = 3; ctx.strokeRect(opt.x, opt.y, opt.w, opt.h);
+            ctx.fillStyle = isHover ? "#000000" : "#ffffff"; ctx.font = "bold 18px Arial";
+            ctx.fillText(opt.text, opt.x + opt.w / 2, opt.y + opt.h / 2 + 6);
         });
+        ctx.textAlign = "left"; 
+    }
 
-        // Barra de tiempo restante automático para elegir mejora
-        ctx.fillStyle = "#aaa"; ctx.font = "14px Arial";
-        ctx.fillText(`Siguiente ronda en: ${Math.ceil(roundBreakTimer / 60)}s`, canvas.width / 2, canvas.height * 0.68);
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.4)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(mouseX, mouseY, 6, 0, Math.PI*2); ctx.stroke();
+
+    const currentWeaponData = weaponsCatalog[player.currentWeapon];
+    ctx.fillStyle = "#ffffff"; ctx.font = "20px Arial";
+    ctx.fillText(`Arma: ${currentWeaponData.name.toUpperCase()} (Daño: ${currentWeaponData.damage})`, 25, canvas.height - 110);
+    ctx.fillText(`Munición: ${player.isReloading ? "RECARGANDO..." : player.ammo + "/" + player.maxAmmo}`, 25, canvas.height - 80);
+    ctx.font = "14px Arial"; ctx.fillStyle = "#aaa";
+    ctx.fillText("Mantén 'O' quieto por 5s para recargar Overshield", 25, canvas.height - 60);
+
+    if (dragonWarning && !isRoundBreak) {
+        ctx.fillStyle = "rgba(255, 0, 0, " + (Math.sin(Date.now() / 100) * 0.3 + 0.4) + ")"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#ffffff"; ctx.font = "bold 50px Arial"; ctx.textAlign = "center";
+        ctx.fillText("⚠️ ¡EL DRAGÓN XD SE VIENE EN 5 SEGUNDOS! ⚠️", canvas.width / 2, canvas.height * 0.4);
         ctx.textAlign = "left";
     }
 
-    // Menú de Tienda de Armas en partida (Pausado con 'T')
     if (showShop) {
-        ctx.fillStyle = "rgba(15, 23, 42, 0.96)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "#ffff00"; ctx.font = "bold 36px Arial"; ctx.textAlign = "center";
-        ctx.fillText("ARMERÍA CYBERPUNK (Juego Pausado)", canvas.width / 2, canvas.height * 0.18);
-        ctx.fillStyle = "#ffffff"; ctx.font = "22px Arial";
-        ctx.fillText(`Tu Puntuación: ${score} pts (Se usa como crédito de compra)`, canvas.width / 2, canvas.height * 0.25);
+        ctx.fillStyle = "rgba(10, 10, 20, 0.95)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#00ffcc"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
+        ctx.fillText("TIENDA & ARMERÍA (Juego Pausado)", canvas.width / 2, canvas.height * 0.12);
+        ctx.fillStyle = "#ffffff"; ctx.font = "24px Arial"; ctx.fillText(`Tu Puntuación: ${score} pts`, canvas.width / 2, canvas.height * 0.18);
+        ctx.font = "22px Arial";
+        
+        if (player.currentWeapon === "pistola") { ctx.fillStyle = "#00ffcc"; ctx.fillText(`[EQUIPADA ACTUALMENTE] - 1. ${weaponsCatalog.pistola.name}`, canvas.width / 2, canvas.height * 0.32); } 
+        else { ctx.fillStyle = "#ffffff"; ctx.fillText(`[Presiona 1] Equipar ${weaponsCatalog.pistola.name} (Ya Adquirida)`, canvas.width / 2, canvas.height * 0.32); }
 
-        ctx.font = "20px Arial"; ctx.fillStyle = "#fff";
-        ctx.fillText(`[Presiona 1] ${weaponsCatalog.pistola.name} - EQUIPADO`, canvas.width / 2, canvas.height * 0.38);
+        if (player.currentWeapon === "mp5") { ctx.fillStyle = "#00ffcc"; ctx.fillText(`[EQUIPADA ACTUALMENTE] - 2. ${weaponsCatalog.mp5.name}`, canvas.width / 2, canvas.height * 0.41); } 
+        else if (weaponsCatalog.mp5.purchased) { ctx.fillStyle = "#ffff00"; ctx.fillText(`[Presiona 2] Equipar ${weaponsCatalog.mp5.name} (Ya Adquirido)`, canvas.width / 2, canvas.height * 0.41); } 
+        else { ctx.fillStyle = score >= weaponsCatalog.mp5.cost ? "#ffffff" : "#ff3333"; ctx.fillText(`[Presiona 2] Comprar Subfusil MP5 - Costo: ${weaponsCatalog.mp5.cost} pts`, canvas.width / 2, canvas.height * 0.41); }
 
-        ctx.fillStyle = weaponsCatalog.mp5.purchased ? "#00ff66" : (score >= weaponsCatalog.mp5.cost ? "#fff" : "#ff3333");
-        ctx.fillText(`[Presiona 2] ${weaponsCatalog.mp5.purchased ? "Equipar" : "Comprar"} Subfusil MP5 - Costo: ${weaponsCatalog.mp5.cost} pts`, canvas.width / 2, canvas.height * 0.46);
+        if (player.currentWeapon === "duales") { ctx.fillStyle = "#00ffcc"; ctx.fillText(`[EQUIPADA ACTUALMENTE] - 3. ${weaponsCatalog.duales.name}`, canvas.width / 2, canvas.height * 0.50); } 
+        else if (weaponsCatalog.duales.purchased) { ctx.fillStyle = "#ff00ff"; ctx.fillText(`[Presiona 3] Equipar ${weaponsCatalog.duales.name} (Ya Adquiridas)`, canvas.width / 2, canvas.height * 0.50); } 
+        else { ctx.fillStyle = score >= weaponsCatalog.duales.cost ? "#ffffff" : "#ff3333"; ctx.fillText(`[Presiona 3] Comprar Pistolas Duales - Costo: ${weaponsCatalog.duales.cost} pts`, canvas.width / 2, canvas.height * 0.50); }
 
-        ctx.fillStyle = weaponsCatalog.duales.purchased ? "#00ff66" : (score >= weaponsCatalog.duales.cost ? "#fff" : "#ff3333");
-        ctx.fillText(`[Presiona 3] ${weaponsCatalog.duales.purchased ? "Equipar" : "Comprar"} Pistolas Duales - Costo: ${weaponsCatalog.duales.cost} pts`, canvas.width / 2, canvas.height * 0.54);
+        if (player.currentWeapon === "rifle") { ctx.fillStyle = "#00ffcc"; ctx.fillText(`[EQUIPADA ACTUALMENTE] - 4. ${weaponsCatalog.rifle.name}`, canvas.width / 2, canvas.height * 0.59); } 
+        else if (weaponsCatalog.rifle.purchased) { ctx.fillStyle = "#00bfff"; ctx.fillText(`[Presiona 4] Equipar ${weaponsCatalog.rifle.name} (Ya Adquirido)`, canvas.width / 2, canvas.height * 0.59); } 
+        else { ctx.fillStyle = score >= weaponsCatalog.rifle.cost ? "#ffffff" : "#ff3333"; ctx.fillText(`[Presiona 4] Comprar Rifle Pesado - Costo: ${weaponsCatalog.rifle.cost} pts`, canvas.width / 2, canvas.height * 0.59); }
 
-        ctx.fillStyle = weaponsCatalog.rifle.purchased ? "#00ff66" : (score >= weaponsCatalog.rifle.cost ? "#fff" : "#ff3333");
-        ctx.fillText(`[Presiona 4] ${weaponsCatalog.rifle.purchased ? "Equipar" : "Comprar"} Rifle Pesado - Costo: ${weaponsCatalog.rifle.cost} pts`, canvas.width / 2, canvas.height * 0.62);
-
-        ctx.fillStyle = weaponsCatalog.galil.purchased ? "#00ff66" : (score >= weaponsCatalog.galil.cost ? "#fff" : "#ff3333");
-        ctx.fillText(`[Presiona 5] ${weaponsCatalog.galil.purchased ? "Equipar" : "Comprar"} Rifle Galil AR - Costo: ${weaponsCatalog.galil.cost} pts`, canvas.width / 2, canvas.height * 0.70);
+        if (player.currentWeapon === "galil") { ctx.fillStyle = "#00ffcc"; ctx.fillText(`[EQUIPADA ACTUALMENTE] - 5. ${weaponsCatalog.galil.name}`, canvas.width / 2, canvas.height * 0.68); } 
+        else if (weaponsCatalog.galil.purchased) { ctx.fillStyle = "#00ff66"; ctx.fillText(`[Presiona 5] Equipar ${weaponsCatalog.galil.name} (Ya Adquirido)`, canvas.width / 2, canvas.height * 0.68); } 
+        else { ctx.fillStyle = score >= weaponsCatalog.galil.cost ? "#ffffff" : "#ff3333"; ctx.fillText(`[Presiona 5] Comprar Rifle Galil AR - Costo: ${weaponsCatalog.galil.cost} pts`, canvas.width / 2, canvas.height * 0.68); }
         
         ctx.fillStyle = "#aaa"; ctx.font = "18px Arial"; ctx.fillText("Presiona 'T' para cerrar el menú y volver al juego", canvas.width / 2, canvas.height * 0.82);
         ctx.textAlign = "left";
     }
 
-    // Menú de desarrollador y trucos (Pausado con 'M')
     if (showCheats) {
         ctx.fillStyle = "rgba(25, 10, 10, 0.96)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#ff3333"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
@@ -1927,24 +2069,18 @@ function draw() {
         ctx.fillStyle = "#ffffff"; ctx.font = "24px Arial"; ctx.fillText(`Puntuación Actual: ${score} pts`, canvas.width / 2, canvas.height * 0.28);
         ctx.font = "22px Arial"; ctx.fillStyle = "#ffaa00";
         ctx.fillText("[Presiona 1] Añadir +10,000 Puntos Instantáneos", canvas.width / 2, canvas.height * 0.42);
+        // UI DE LA NUEVA TRAMPA
         ctx.fillStyle = "#00ffff";
-        ctx.fillText("[Presiona 2] Invocar Ciberjefe Ciclo Instantáneo", canvas.width / 2, canvas.height * 0.52);
-        ctx.fillStyle = "#aaaaaa"; ctx.font = "18px Arial"; ctx.fillText("Presiona 'M' para cerrar el menú de trucos y continuar", canvas.width / 2, canvas.height * 0.75);
+        ctx.fillText("[Presiona 2] Avanzar / Saltear Siguiente Ronda (+100 Monedas)", canvas.width / 2, canvas.height * 0.50);
+        
+        ctx.fillStyle = "#aaa"; ctx.font = "18px Arial"; ctx.fillText("Presiona 'M' de nuevo para cerrar el menú de trucos", canvas.width / 2, canvas.height * 0.75);
         ctx.textAlign = "left";
     }
 }
 
-let lastTime = 0;
-function gameLoop(timestamp) {
-    let dt = timestamp - lastTime;
-    if (!dt || dt > 100) dt = 16.66;
-    lastTime = timestamp;
-
-    update(dt);
-    draw();
-
-    requestAnimationFrame(gameLoop);
+function loop() { 
+    update(); 
+    draw(); 
+    requestAnimationFrame(loop); 
 }
-
-// Inicialización automática del loop de renderizado
-requestAnimationFrame(gameLoop);
+loop();
