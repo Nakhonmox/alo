@@ -685,6 +685,8 @@ function spawnKamikazeEnemy() {
     });
 }
 let spawnKamikazeInterval = setInterval(spawnKamikazeEnemy, 12000);
+
+function spawnBoss() {
     if (gameState !== "playing" || player.lives <= 0 || isPaused || dragonSpawned || dragonWarning || isRoundBreak || specialRoundType === "speed") return; 
     
     let extraHealth = Math.floor(currentRound / 5);
